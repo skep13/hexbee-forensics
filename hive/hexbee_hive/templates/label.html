@@ -23,7 +23,9 @@
 </script>
 <style>
 @media print {
-  nav, button, p:last-of-type { display: none !important; }
+  .sidebar, .topbar, button, p:last-of-type { display: none !important; }
+  .app { grid-template-columns: 1fr !important; }
+  main { padding: 0 !important; }
   body { background: #fff !important; }
 }
 </style>

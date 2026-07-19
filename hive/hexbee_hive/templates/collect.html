@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Collection — HexBee Hive{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Evidence Collection</h1>
+    <p class="sub">Deploy collectors against live hosts and seized media — copy a command or scan a phone.</p>
+  </div>
+</div>
+
+{% if not ingest_enabled %}
+<div class="panel flash">⚠️ REST ingest is disabled on this Hive. An administrator must set an ingest key
+  (<code>HEXBEE_INGEST_KEY</code>) before external collectors can submit evidence.</div>
+{% endif %}
+
+<div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(18rem,1fr))">
+
+  <div class="card">
+    <h2 style="margin-top:0">🐝 Forager — live host</h2>
+    <p class="muted">Read-only agent. Run it on a target computer to capture processes, network,
+      logons, autoruns, USB history and recent files into the evidence chain.</p>
+    <p class="muted"><strong>USB stick (no install):</strong> plug in the HexBee Forager stick and
+      double-click <code>RUN-WINDOWS.bat</code> → choose <em>Collect</em>. Or from a shell:</p>
+    <div class="cmd"><code id="c1">hexbee-forager --hive {{ base_url }} --key {{ ingest_key or 'YOUR-INGEST-KEY' }} collect</code>
+      <button class="btn btn-sm copy" data-copy="hexbee-forager --hive {{ base_url }} --key {{ ingest_key or 'YOUR-INGEST-KEY' }} collect">copy</button></div>
+    <p class="muted" style="margin-bottom:0">Continuous monitoring: replace <code>collect</code> with
+      <code>watch --interval 60</code>.</p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">🔬 Comb — disk &amp; media</h2>
+    <p class="muted">Triage a mounted image or drive on the Queen: hashing, carving, partitions,
+      EXIF/GPS, browser history — findings flow straight into this Hive.</p>
+    <p class="muted"><strong>Point-and-click:</strong> run the Comb UI, paste the path, click Scan.</p>
+    <div class="cmd"><code>hexbee-comb serve</code>
+      <button class="btn btn-sm copy" data-copy="hexbee-comb serve">copy</button></div>
+    <p class="muted">Or scan and upload directly:</p>
+    <div class="cmd"><code>hexbee-comb scan /mnt/evi --hive {{ base_url }} --key {{ ingest_key or 'YOUR-INGEST-KEY' }}</code>
+      <button class="btn btn-sm copy" data-copy="hexbee-comb scan /mnt/evi --hive {{ base_url }} --key {{ ingest_key or 'YOUR-INGEST-KEY' }}">copy</button></div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">📱 iPhone — field companion</h2>
+    <p class="muted">Photograph physical evidence straight into the chain, view incidents, scan case
+      QR labels. Open on the phone and <em>Add to Home Screen</em>.</p>
+    <div class="cmd"><code>{{ base_url }}/field</code>
+      <button class="btn btn-sm copy" data-copy="{{ base_url }}/field">copy</button></div>
+    <p style="margin:.8rem 0 0"><a class="btn" href="/field">Open field app →</a></p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">🐝 Scout — USB hardware agent</h2>
+    <p class="muted">The ESP32-S3 field device reports USB/host activity over Wi-Fi. Firmware is in
+      hardware bring-up; rehearse the full pipeline with the simulator:</p>
+    <div class="cmd"><code>python scout_sim.py --rest {{ base_url }} --key {{ ingest_key or 'YOUR-INGEST-KEY' }} --scenario incident</code>
+      <button class="btn btn-sm copy" data-copy="python scout_sim.py --rest {{ base_url }} --key {{ ingest_key or 'YOUR-INGEST-KEY' }} --scenario incident">copy</button></div>
+  </div>
+</div>
+
+{% if not ingest_key and user.role != 'administrator' %}
+<p class="muted">The ingest key is hidden — ask an administrator, or they can copy it from the Admin page.</p>
+{% endif %}
+{% endblock %}

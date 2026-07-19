@@ -1,9 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Admin — HexBee Hive{% endblock %}
 {% block content %}
-<h1>Admin &amp; Operations</h1>
+<div class="page-head">
+  <div><h1>Admin &amp; Operations</h1>
+    <p class="sub">Users, security posture, and evidence-integrity operations.</p></div>
+  <div class="actions">
+    <a class="btn" href="/admin/anchor" download>⬇ Anchor receipt</a>
+    <form class="inline" method="post" action="/admin/correlate">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <button type="submit">↻ Re-correlate</button>
+    </form>
+  </div>
+</div>
 {% if request.args.get('flash') %}
-<div class="panel" style="border-color: var(--honey)">{{ request.args.get('flash') }}</div>
+<div class="panel flash">{{ request.args.get('flash') }}</div>
 {% endif %}
 
 <h2>Security posture</h2>

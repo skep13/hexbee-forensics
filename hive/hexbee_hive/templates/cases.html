@@ -1,32 +1,43 @@
 {% extends "base.html" %}
 {% block title %}Cases — HexBee Hive{% endblock %}
 {% block content %}
-<h1>Cases</h1>
+<div class="page-head">
+  <div><h1>Cases</h1>
+    <p class="sub">Investigation files — incidents, notes, timeline, signed exports.</p></div>
+  {% if user.role in ('investigator', 'administrator') %}
+  <div class="actions"><button id="newcase-btn" class="btn-primary">+ New Case</button></div>
+  {% endif %}
+</div>
 
 {% if user.role in ('investigator', 'administrator') %}
-<div class="panel">
+<div class="panel" id="newcase" style="display:none">
   <h2 style="margin-top:0">Open a new case</h2>
-  <form method="post" action="/cases/new" style="display:flex; flex-direction:column; gap:.6rem; max-width:32rem;">
+  <form method="post" action="/cases/new" style="display:flex; flex-direction:column; gap:.6rem; max-width:34rem;">
     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-    <input name="title" placeholder="Case title" required>
-    <textarea name="description" placeholder="Description" rows="3"></textarea>
-    <button type="submit" style="align-self:flex-start">Create case</button>
+    <div class="field"><label>Case title</label><input name="title" required></div>
+    <div class="field"><label>Description</label><textarea name="description" rows="3"></textarea></div>
+    <button class="btn-primary" type="submit" style="align-self:flex-start">Create case</button>
   </form>
 </div>
+<script nonce="{{ csp_nonce }}">
+  document.getElementById('newcase-btn').addEventListener('click',function(){
+    var p=document.getElementById('newcase');
+    p.style.display = p.style.display==='none' ? 'block' : 'none';});
+</script>
 {% endif %}
 
 {% if cases %}
-<table>
+<div class="tablewrap"><table>
 <tr><th>Case #</th><th>Title</th><th>Status</th><th>Opened</th><th>By</th></tr>
 {% for c in cases %}
 <tr>
-  <td><a href="/cases/{{ c.id }}">{{ c.case_number }}</a></td>
+  <td><a href="/cases/{{ c.id }}"><span class="mono">{{ c.case_number }}</span></a></td>
   <td>{{ c.title }}</td>
   <td><span class="badge {{ c.status }}">{{ c.status }}</span></td>
-  <td>{{ c.created_at }}</td>
-  <td>{{ c.created_by }}</td>
+  <td><span class="mono muted">{{ c.created_at }}</span></td>
+  <td><span class="mono">{{ c.created_by }}</span></td>
 </tr>
 {% endfor %}
-</table>
-{% else %}<p class="muted">No cases yet.</p>{% endif %}
+</table></div>
+{% else %}<div class="panel muted">No cases yet. Click <strong>+ New Case</strong> to open one.</div>{% endif %}
 {% endblock %}

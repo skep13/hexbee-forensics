@@ -1,44 +1,47 @@
 {% extends "base.html" %}
 {% block title %}Search — HexBee Hive{% endblock %}
 {% block content %}
-<h1>Search evidence</h1>
+<div class="page-head">
+  <div><h1>Search Evidence</h1>
+    <p class="sub">Filter the hash-chained evidence log by content, device, type, tag or time.</p></div>
+</div>
 
 <div class="panel">
-<form method="get" style="display:flex; flex-wrap:wrap; gap:.6rem; align-items:end;">
-  <label>Text<br><input name="text" value="{{ query.get('text', '') }}"
-         placeholder="filename, hash, host…"></label>
-  <label>Device<br>
+<form method="get" style="display:flex; flex-wrap:wrap; gap:.7rem; align-items:end;">
+  <div class="field"><label>Text</label><input name="text" value="{{ query.get('text', '') }}"
+         placeholder="filename, hash, host…"></div>
+  <div class="field"><label>Device</label>
     <select name="device">
       <option value="">any</option>
       {% for d in devices %}
       <option value="{{ d }}" {% if query.get('device') == d %}selected{% endif %}>{{ d }}</option>
       {% endfor %}
-    </select></label>
-  <label>Event type<br><input name="event_type" value="{{ query.get('event_type', '') }}"
-         placeholder="usb_inserted"></label>
-  <label>Tag<br><input name="tag" value="{{ query.get('tag', '') }}"></label>
-  <label>Since (UTC)<br><input name="since" value="{{ query.get('since', '') }}"
-         placeholder="2026-07-18T00:00:00Z"></label>
-  <label>Until (UTC)<br><input name="until" value="{{ query.get('until', '') }}"></label>
-  <button type="submit">Search</button>
+    </select></div>
+  <div class="field"><label>Event type</label><input name="event_type" value="{{ query.get('event_type', '') }}"
+         placeholder="usb_inserted"></div>
+  <div class="field"><label>Tag</label><input name="tag" value="{{ query.get('tag', '') }}"></div>
+  <div class="field"><label>Since (UTC)</label><input name="since" value="{{ query.get('since', '') }}"
+         placeholder="2026-07-18T00:00:00Z"></div>
+  <div class="field"><label>Until (UTC)</label><input name="until" value="{{ query.get('until', '') }}"></div>
+  <button class="btn-primary" type="submit">Search</button>
 </form>
 </div>
 
 {% if results is not none %}
 <p class="muted">{{ results | length }} result(s)</p>
-<table>
+<div class="tablewrap"><table>
 <tr><th>Time (UTC)</th><th>Device</th><th>Type</th><th>Sev</th><th>Payload</th><th>Incident</th><th>Hash</th></tr>
 {% for e in results %}
 <tr>
-  <td>{{ e.occurred_at }}</td>
-  <td>{{ e.device }}</td>
-  <td>{{ e.event_type }}</td>
-  <td class="sev sev-{{ e.severity }}">{{ e.severity }}</td>
+  <td><span class="mono muted">{{ e.occurred_at }}</span></td>
+  <td><span class="mono">{{ e.device }}</span></td>
+  <td><span class="mono">{{ e.event_type }}</span></td>
+  <td><span class="sevchip sev-{{ e.severity }}"></span></td>
   <td><code>{{ e.payload | payload_pretty }}</code></td>
   <td>{% if e.incident_id %}<a href="/incidents/{{ e.incident_id }}">#{{ e.incident_id }}</a>{% endif %}</td>
   <td><code title="{{ e.event_hash }}">{{ e.event_hash[:12] }}…</code></td>
 </tr>
 {% endfor %}
-</table>
+</table></div>
 {% endif %}
 {% endblock %}

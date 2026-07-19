@@ -1,21 +1,24 @@
 {% extends "base.html" %}
 {% block title %}Devices — HexBee Hive{% endblock %}
 {% block content %}
-<h1>Device inventory</h1>
+<div class="page-head">
+  <div><h1>Device Inventory</h1>
+    <p class="sub">Scouts, Foragers and Comb nodes that have reported evidence.</p></div>
+</div>
 {% if devices %}
-<table>
-<tr><th></th><th>Name</th><th>Kind</th><th>First seen</th><th>Last seen</th><th>Events</th></tr>
+<div class="tablewrap"><table>
+<tr><th>State</th><th>Name</th><th>Kind</th><th>First seen</th><th>Last seen</th><th>Events</th></tr>
 {% for d in devices %}
 <tr>
-  <td title="{{ 'online' if d.online else 'offline' }}">{{ '🟢' if d.online else '⚫' }}</td>
-  <td><a href="/search?device={{ d.name }}">{{ d.name }}</a></td>
-  <td>{{ d.kind }}</td>
-  <td>{{ d.first_seen }}</td>
-  <td>{{ d.last_seen }}</td>
-  <td>{{ d.event_count }}</td>
+  <td><span class="sevchip {{ 'sev-1' if d.online else 'sev-0' }}">{{ 'online' if d.online else 'offline' }}</span></td>
+  <td><a href="/search?device={{ d.name }}"><span class="mono">{{ d.name }}</span></a></td>
+  <td><span class="badge">{{ d.kind }}</span></td>
+  <td><span class="mono muted">{{ d.first_seen }}</span></td>
+  <td><span class="mono muted">{{ d.last_seen }}</span></td>
+  <td><span class="mono">{{ d.event_count }}</span></td>
 </tr>
 {% endfor %}
-</table>
-<p class="muted">🟢 = event received in the last 5 minutes.</p>
-{% else %}<p class="muted">No Scouts have reported yet.</p>{% endif %}
+</table></div>
+<p class="muted">Online = event received in the last 5 minutes.</p>
+{% else %}<div class="panel muted">No devices have reported yet.</div>{% endif %}
 {% endblock %}

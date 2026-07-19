@@ -1,15 +1,59 @@
 {% extends "base.html" %}
-{% block title %}Sign in — HexBee Hive{% endblock %}
+{% block title %}Sign in — HexBee Forensics{% endblock %}
 {% block content %}
-<div class="panel" style="max-width: 26rem; margin: 4rem auto; text-align: center;
-     background: #000; border-color: var(--honey);">
-  <img src="/static/logo-512.png" alt="HexBee Forensics — Detect · Isolate · Analyse"
-       style="width: 100%; max-width: 20rem; margin-bottom: .8rem;">
-  {% if error %}<p style="color: var(--crit)">{{ error }}</p>{% endif %}
-  <form method="post" style="display: flex; flex-direction: column; gap: .7rem;">
-    <input name="username" placeholder="Username" autofocus autocomplete="username">
-    <input name="password" type="password" placeholder="Password" autocomplete="current-password">
-    <button type="submit">Sign in</button>
-  </form>
+<style>
+.auth{min-height:calc(100vh - 4rem);display:grid;grid-template-columns:1.1fr .9fr;
+  gap:0;max-width:64rem;margin:0 auto;border:1px solid var(--line);border-radius:14px;
+  overflow:hidden;box-shadow:var(--shadow)}
+.auth .brandside{background:
+   radial-gradient(600px 300px at 30% 0%, rgba(245,184,42,.14), transparent 60%),
+   linear-gradient(160deg,#1c1710,#0f0d08);
+  padding:2.6rem 2.4rem;display:flex;flex-direction:column;justify-content:center;gap:1rem;
+  position:relative;overflow:hidden}
+.auth .brandside::after{content:"";position:absolute;inset:0;opacity:.5;
+  background-image:radial-gradient(circle at 1px 1px, rgba(245,184,42,.08) 1px, transparent 0);
+  background-size:22px 22px}
+.auth .brandside img{height:88px;width:88px;position:relative}
+.auth .brandside h1{font-size:1.9rem;letter-spacing:.02em;margin:.4rem 0 0;position:relative}
+.auth .brandside h1 .b{color:var(--honey)}
+.auth .brandside .tag{font-family:var(--mono);letter-spacing:.34em;color:var(--faint);
+  font-size:.7rem;position:relative}
+.auth .brandside ul{list-style:none;padding:0;margin:1rem 0 0;position:relative;color:var(--muted);
+  font-size:.86rem;display:flex;flex-direction:column;gap:.5rem}
+.auth .brandside li{display:flex;gap:.6rem;align-items:center}
+.auth .brandside li::before{content:"";width:6px;height:6px;background:var(--honey);
+  border-radius:2px;transform:rotate(45deg)}
+.auth .formside{background:var(--bg-2);padding:2.6rem 2.4rem;display:flex;
+  flex-direction:column;justify-content:center}
+.auth .formside h2{margin:0 0 .3rem} .auth .formside h2::before{display:none}
+.auth form{display:flex;flex-direction:column;gap:.9rem;margin-top:1.2rem}
+.auth input{padding:.7rem .8rem;font-size:.95rem}
+.auth button{padding:.72rem;font-size:.95rem;justify-content:center}
+.auth .err{color:var(--crit);font-size:.85rem;font-family:var(--mono)}
+@media(max-width:760px){.auth{grid-template-columns:1fr}.auth .brandside{display:none}}
+</style>
+<div class="auth">
+  <div class="brandside">
+    <img src="/static/logo-512.png" alt="HexBee Forensics">
+    <h1>HEX<span class="b">BEE</span></h1>
+    <div class="tag">DETECT · ISOLATE · ANALYSE</div>
+    <ul>
+      <li>Tamper-evident hash-chained evidence log</li>
+      <li>Live &amp; disk acquisition, incident correlation</li>
+      <li>Fully offline — maps, reference, local AI</li>
+    </ul>
+  </div>
+  <div class="formside">
+    <h2>Sign in</h2>
+    <p class="muted" style="margin:0">Authorized investigators only.</p>
+    {% if error %}<p class="err">⛔ {{ error }}</p>{% endif %}
+    <form method="post">
+      <div class="field"><label>Username</label>
+        <input name="username" autofocus autocomplete="username" required></div>
+      <div class="field"><label>Password</label>
+        <input name="password" type="password" autocomplete="current-password" required></div>
+      <button class="btn-primary" type="submit">Sign in →</button>
+    </form>
+  </div>
 </div>
 {% endblock %}

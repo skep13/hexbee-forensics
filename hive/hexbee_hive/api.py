@@ -734,6 +734,23 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
         set_user_disabled(db, username, disable, g.user["username"])
         return redirect(url_for("admin_page", flash="user updated"))
 
+    @app.post("/admin/correlate")
+    @require("administrator", api=False)
+    def admin_correlate():
+        from .correlate import backfill
+        total = backfill(db, cfg.correlation_window_seconds)
+        audit(db, g.user["username"], "correlation_backfill", f"{total} incidents")
+        return redirect(url_for("admin_page", flash=f"correlation backfill complete — {total} incident(s)"))
+
+    @app.get("/collect")
+    @require("viewer", api=False)
+    def collect_page():
+        base = request.host_url.rstrip("/")
+        # The ingest key is a secret: only reveal it to administrators.
+        key = cfg.ingest_key if g.user["role"] == "administrator" else None
+        return render_template("collect.html", user=g.user, base_url=base,
+                               ingest_key=key, ingest_enabled=bool(cfg.ingest_key))
+
     @app.get("/admin/anchor")
     @require("administrator", api=False)
     def admin_anchor_download():
