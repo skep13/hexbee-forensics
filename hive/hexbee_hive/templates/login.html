@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Sign in — HexBee Hive{% endblock %}
+{% block content %}
+<div class="panel" style="max-width: 26rem; margin: 4rem auto; text-align: center;
+     background: #000; border-color: var(--honey);">
+  <img src="/static/logo-512.png" alt="HexBee Forensics — Detect · Isolate · Analyse"
+       style="width: 100%; max-width: 20rem; margin-bottom: .8rem;">
+  {% if error %}<p style="color: var(--crit)">{{ error }}</p>{% endif %}
+  <form method="post" style="display: flex; flex-direction: column; gap: .7rem;">
+    <input name="username" placeholder="Username" autofocus autocomplete="username">
+    <input name="password" type="password" placeholder="Password" autocomplete="current-password">
+    <button type="submit">Sign in</button>
+  </form>
+</div>
+{% endblock %}

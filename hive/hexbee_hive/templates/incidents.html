@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Incidents — HexBee Hive{% endblock %}
+{% block content %}
+<h1>Incidents</h1>
+{% if incidents %}
+<table>
+<tr><th>#</th><th>Opened</th><th>Updated</th><th>Title</th><th>Sev</th><th>Status</th><th>Case</th></tr>
+{% for i in incidents %}
+<tr>
+  <td><a href="/incidents/{{ i.id }}">{{ i.id }}</a></td>
+  <td>{{ i.opened_at }}</td>
+  <td>{{ i.updated_at }}</td>
+  <td>{{ i.title }}</td>
+  <td class="sev sev-{{ i.severity }}">{{ i.severity }}</td>
+  <td><span class="badge {{ i.status }}">{{ i.status }}</span></td>
+  <td>{% if i.case_id %}<a href="/cases/{{ i.case_id }}">case {{ i.case_id }}</a>{% endif %}</td>
+</tr>
+{% endfor %}
+</table>
+{% else %}<p class="muted">No incidents recorded.</p>{% endif %}
+{% endblock %}

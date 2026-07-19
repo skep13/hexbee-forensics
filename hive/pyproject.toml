@@ -1,0 +1,28 @@
+[project]
+name = "hexbee-hive"
+version = "0.1.0"
+description = "HexBee Hive — distributed DFIR evidence aggregation node"
+requires-python = ">=3.9"
+dependencies = [
+    "flask>=3.0",
+    "paho-mqtt>=2.0",
+    "segno>=1.6",
+]
+
+[project.optional-dependencies]
+# Offline Wikipedia (ZIM) support; wheels available for the Pi's aarch64.
+zim = ["libzim>=3.0"]
+
+[project.scripts]
+hexbee-hive = "hexbee_hive.cli:main"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["hexbee_hive*"]
+
+[tool.setuptools.package-data]
+hexbee_hive = ["templates/*.html", "static/*.svg", "static/*.png",
+               "static/*.webmanifest"]

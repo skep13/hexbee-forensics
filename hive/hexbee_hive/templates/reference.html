@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Reference — HexBee Hive{% endblock %}
+{% block content %}
+<h1>Offline reference library</h1>
+<p class="muted">Served entirely from the Hive — no internet required. Drop
+<code>.zim</code> archives (offline Wikipedia et al. from
+<code>download.kiwix.org/zim/</code>) or plain HTML/Markdown/PDF documents into
+the Hive's <code>data/reference</code> folder.</p>
+
+<h2>Wikipedia / ZIM archives</h2>
+{% if catalog.zims %}
+  {% if not catalog.zim_supported %}
+  <p style="color: var(--warn)">ZIM files found, but <code>python-libzim</code> is not
+  installed on this Hive — <code>pip install libzim</code> to enable them.</p>
+  {% endif %}
+  <table>
+  <tr><th>Archive</th><th></th></tr>
+  {% for zim_file in catalog.zims %}
+  <tr>
+    <td><code>{{ zim_file }}</code></td>
+    <td>
+      {% if catalog.zim_supported %}
+      <a href="/reference/zim/{{ zim_file }}/">browse</a>
+      <form class="inline" method="get" action="/reference">
+        <input type="hidden" name="zim" value="{{ zim_file }}">
+        <input name="q" placeholder="search articles…" value="{{ query if zim == zim_file else '' }}">
+        <button type="submit">Search</button>
+      </form>
+      {% else %}<span class="muted">unavailable</span>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </table>
+{% else %}
+<p class="muted">No ZIM archives installed.</p>
+{% endif %}
+
+{% if results is not none %}
+<h2>Search results for “{{ query }}”</h2>
+{% if results %}
+<ul>
+{% for r in results %}
+<li><a href="/reference/zim/{{ zim }}/{{ r.path }}">{{ r.title }}</a></li>
+{% endfor %}
+</ul>
+{% else %}<p class="muted">No matches.</p>{% endif %}
+{% endif %}
+
+<h2>Documents</h2>
+{% if catalog.documents %}
+<ul>
+{% for doc in catalog.documents %}
+<li><a href="/reference/doc/{{ doc }}">{{ doc }}</a></li>
+{% endfor %}
+</ul>
+{% else %}<p class="muted">No documents installed.</p>{% endif %}
+{% endblock %}

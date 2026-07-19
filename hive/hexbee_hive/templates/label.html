@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Label {{ case.case_number }} — HexBee{% endblock %}
+{% block content %}
+<div class="panel" style="max-width: 26rem; margin: 2rem auto; text-align: center;
+     background: #fff; color: #111;" id="label">
+  <img src="/static/logo-180.png" alt="" style="height: 3.2rem;">
+  <div style="font-size: 1.6rem; font-weight: 800; letter-spacing: .05em; margin: .4rem 0;">
+    {{ case.case_number }}</div>
+  <div style="font-size: .95rem; margin-bottom: .6rem;">{{ case.title }}</div>
+  <img src="/cases/{{ case.id }}/qr.svg" alt="case QR" style="width: 12rem;">
+  <div style="font-size: .75rem; color: #555; margin-top: .5rem;">
+    Scan with any camera to open the case on the Hive.<br>
+    Opened {{ case.created_at }} · {{ case.created_by }}</div>
+</div>
+<p style="text-align:center">
+  <button onclick="window.print()">🖨 Print label</button>
+  &nbsp; <a href="/cases/{{ case.id }}">back to case</a>
+</p>
+<style>
+@media print {
+  nav, button, p:last-of-type { display: none !important; }
+  body { background: #fff !important; }
+}
+</style>
+{% endblock %}

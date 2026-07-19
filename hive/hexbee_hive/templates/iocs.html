@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}IOCs — HexBee Hive{% endblock %}
+{% block content %}
+<h1>Indicators of compromise</h1>
+<p class="muted">Incoming events are checked against this list at ingest. A match
+escalates the event to critical, opens/extends an incident, and is recorded below.</p>
+
+{% if user.role in ('investigator', 'administrator') %}
+<div class="panel">
+  <form class="inline" method="post" action="/iocs/new" style="flex-wrap: wrap;">
+    <select name="kind">
+      <option value="sha256">sha256</option>
+      <option value="filename">filename</option>
+      <option value="ip">ip</option>
+      <option value="domain">domain</option>
+      <option value="substring">substring</option>
+    </select>
+    <input name="value" placeholder="indicator value" required style="min-width: 20rem;">
+    <input name="note" placeholder="note / source">
+    <button type="submit">Add IOC</button>
+  </form>
+</div>
+{% endif %}
+
+<h2>Watchlist ({{ iocs | length }})</h2>
+{% if iocs %}
+<table>
+<tr><th>Kind</th><th>Value</th><th>Note</th><th>Added by</th><th>Added</th><th>Hits</th><th></th></tr>
+{% for i in iocs %}
+<tr>
+  <td><span class="badge">{{ i.kind }}</span></td>
+  <td><code>{{ i.value }}</code></td>
+  <td>{{ i.note }}</td>
+  <td>{{ i.added_by }}</td>
+  <td>{{ i.added_at }}</td>
+  <td class="sev {{ 'sev-3' if i.hits else '' }}">{{ i.hits }}</td>
+  <td>
+    {% if user.role in ('investigator', 'administrator') %}
+    <form class="inline" method="post" action="/iocs/{{ i.id }}/delete"
+          onsubmit="return confirm('Remove this IOC?')">
+      <button type="submit" style="background: var(--line); color: var(--text);">✕</button>
+    </form>
+    {% endif %}
+  </td>
+</tr>
+{% endfor %}
+</table>
+{% else %}<p class="muted">No indicators loaded.</p>{% endif %}
+
+<h2>Recent hits</h2>
+{% if hits %}
+<table>
+<tr><th>Matched</th><th>Indicator</th><th>Event</th><th>Device</th><th>Incident</th></tr>
+{% for h in hits %}
+<tr>
+  <td>{{ h.matched_at }}</td>
+  <td><span class="badge">{{ h.kind }}</span> <code>{{ h.value }}</code></td>
+  <td>#{{ h.event_id }} {{ h.event_type }} @ {{ h.occurred_at }}</td>
+  <td>{{ h.device }}</td>
+  <td>{% if h.incident_id %}<a href="/incidents/{{ h.incident_id }}">#{{ h.incident_id }}</a>{% endif %}</td>
+</tr>
+{% endfor %}
+</table>
+{% else %}<p class="muted">No IOC hits recorded.</p>{% endif %}
+{% endblock %}

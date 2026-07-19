@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Evidence Map — HexBee Hive{% endblock %}
+{% block content %}
+<h1>Evidence map
+  <span class="muted" style="font-size:.7rem">
+    {% if source %}tiles: {{ source }}{% else %}no MBTiles installed — drop a
+    .mbtiles file into the Hive's data/maps folder for real cartography{% endif %}
+  </span>
+</h1>
+
+<div id="map" style="height: 34rem; background: var(--dark); position: relative;
+     overflow: hidden; border: 1px solid var(--line); border-radius: 8px;
+     cursor: grab; touch-action: none;"></div>
+<p class="muted" id="status">Loading evidence points…</p>
+<div id="points-list"></div>
+
+<script>
+/* HexBee slippy map — zero external dependencies, fully offline. */
+(function () {
+  const TILE = 256;
+  const el = document.getElementById("map");
+  const status = document.getElementById("status");
+  let z = 2, centerLat = 20, centerLon = 0, points = [];
+
+  function lon2x(lon, zoom) { return (lon + 180) / 360 * Math.pow(2, zoom); }
+  function lat2y(lat, zoom) {
+    const rad = lat * Math.PI / 180;
+    return (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2
+           * Math.pow(2, zoom);
+  }
+  function x2lon(x, zoom) { return x / Math.pow(2, zoom) * 360 - 180; }
+  function y2lat(y, zoom) {
+    const n = Math.PI - 2 * Math.PI * y / Math.pow(2, zoom);
+    return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+  }
+
+  function render() {
+    el.innerHTML = "";
+    const w = el.clientWidth, h = el.clientHeight;
+    const cx = lon2x(centerLon, z) * TILE, cy = lat2y(centerLat, z) * TILE;
+    const maxTile = Math.pow(2, z);
+    const x0 = Math.floor((cx - w / 2) / TILE), x1 = Math.floor((cx + w / 2) / TILE);
+    const y0 = Math.floor((cy - h / 2) / TILE), y1 = Math.floor((cy + h / 2) / TILE);
+    for (let tx = x0; tx <= x1; tx++) {
+      for (let ty = Math.max(0, y0); ty <= Math.min(maxTile - 1, y1); ty++) {
+        const img = document.createElement("img");
+        const wrapped = ((tx % maxTile) + maxTile) % maxTile;
+        img.src = `/tiles/${z}/${wrapped}/${ty}`;
+        img.style.cssText = `position:absolute; width:${TILE}px; height:${TILE}px;` +
+          `left:${tx * TILE - cx + w / 2}px; top:${ty * TILE - cy + h / 2}px;`;
+        img.draggable = false;
+        el.appendChild(img);
+      }
+    }
+    for (const p of points) {
+      const px = lon2x(p.lon, z) * TILE - cx + w / 2;
+      const py = lat2y(p.lat, z) * TILE - cy + h / 2;
+      if (px < -20 || py < -20 || px > w + 20 || py > h + 20) continue;
+      const m = document.createElement("div");
+      m.title = p.label;
+      m.textContent = "⬢";
+      m.style.cssText = `position:absolute; left:${px - 9}px; top:${py - 12}px;` +
+        "color:#f0b429; font-size:18px; text-shadow:0 0 4px #000; cursor:pointer;";
+      if (p.incident_id) m.onclick = () => location.href = "/incidents/" + p.incident_id;
+      el.appendChild(m);
+    }
+    const zc = document.createElement("div");
+    zc.style.cssText = "position:absolute; right:.5rem; top:.5rem; display:flex;" +
+      "flex-direction:column; gap:.3rem; z-index:5;";
+    for (const [txt, dz] of [["+", 1], ["−", -1]]) {
+      const b = document.createElement("button");
+      b.textContent = txt;
+      b.style.cssText = "width:2rem; height:2rem; font-size:1.1rem;";
+      b.onclick = () => { z = Math.max(0, Math.min(15, z + dz)); render(); };
+      zc.appendChild(b);
+    }
+    el.appendChild(zc);
+  }
+
+  let drag = null;
+  el.addEventListener("pointerdown", e => {
+    drag = { x: e.clientX, y: e.clientY }; el.setPointerCapture(e.pointerId);
+    el.style.cursor = "grabbing";
+  });
+  el.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const scale = TILE * Math.pow(2, z);
+    centerLon = x2lon(lon2x(centerLon, z) - (e.clientX - drag.x) / TILE, z);
+    centerLat = y2lat(lat2y(centerLat, z) - (e.clientY - drag.y) / TILE, z);
+    centerLat = Math.max(-85, Math.min(85, centerLat));
+    drag = { x: e.clientX, y: e.clientY };
+    render();
+  });
+  el.addEventListener("pointerup", () => { drag = null; el.style.cursor = "grab"; });
+  el.addEventListener("wheel", e => {
+    e.preventDefault();
+    z = Math.max(0, Math.min(15, z + (e.deltaY < 0 ? 1 : -1)));
+    render();
+  }, { passive: false });
+
+  fetch("/api/v1/map/points").then(r => r.json()).then(data => {
+    points = data.points;
+    status.textContent = points.length + " evidence point(s) with coordinates.";
+    if (points.length) {
+      centerLat = points[0].lat; centerLon = points[0].lon; z = 12;
+      const list = document.getElementById("points-list");
+      let html = "<table><tr><th>Label</th><th>Coordinates</th><th>Incident</th></tr>";
+      for (const p of points) {
+        html += `<tr><td>${p.label.replace(/</g, "&lt;")}</td>` +
+          `<td>${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</td>` +
+          `<td>${p.incident_id ? `<a href="/incidents/${p.incident_id}">#${p.incident_id}</a>` : ""}</td></tr>`;
+      }
+      list.innerHTML = html + "</table>";
+    }
+    render();
+  });
+  window.addEventListener("resize", render);
+})();
+</script>
+{% endblock %}

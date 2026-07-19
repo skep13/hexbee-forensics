@@ -1,0 +1,13 @@
+# Normalise text line endings; keep shell scripts LF so they run on
+# Linux (Raspberry Pi / Kali) regardless of the authoring OS.
+* text=auto
+*.sh text eol=lf
+*.service text eol=lf
+*.c text eol=lf
+*.h text eol=lf
+
+# Binary assets — never touch line endings
+*.png binary
+*.svg binary
+*.mbtiles binary
+*.zim binary

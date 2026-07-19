@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Audit — HexBee Hive{% endblock %}
+{% block content %}
+<h1>Audit log</h1>
+<p class="muted">Append-only record of logins, case actions, tagging, IOC changes,
+report generation, and rejected events (chain-of-custody support). Most recent first.</p>
+<table>
+<tr><th>At (UTC)</th><th>Actor</th><th>Action</th><th>Detail</th></tr>
+{% for a in entries %}
+<tr><td>{{ a.at }}</td><td>{{ a.actor }}</td><td>{{ a.action }}</td><td>{{ a.detail }}</td></tr>
+{% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Devices — HexBee Hive{% endblock %}
+{% block content %}
+<h1>Device inventory</h1>
+{% if devices %}
+<table>
+<tr><th></th><th>Name</th><th>Kind</th><th>First seen</th><th>Last seen</th><th>Events</th></tr>
+{% for d in devices %}
+<tr>
+  <td title="{{ 'online' if d.online else 'offline' }}">{{ '🟢' if d.online else '⚫' }}</td>
+  <td><a href="/search?device={{ d.name }}">{{ d.name }}</a></td>
+  <td>{{ d.kind }}</td>
+  <td>{{ d.first_seen }}</td>
+  <td>{{ d.last_seen }}</td>
+  <td>{{ d.event_count }}</td>
+</tr>
+{% endfor %}
+</table>
+<p class="muted">🟢 = event received in the last 5 minutes.</p>
+{% else %}<p class="muted">No Scouts have reported yet.</p>{% endif %}
+{% endblock %}

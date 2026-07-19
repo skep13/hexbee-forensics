@@ -1,0 +1,5 @@
+flask>=3.0
+paho-mqtt>=2.0
+segno>=1.6
+# Optional: offline Wikipedia (ZIM) support
+# libzim>=3.0

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Cases — HexBee Hive{% endblock %}
+{% block content %}
+<h1>Cases</h1>
+
+{% if user.role in ('investigator', 'administrator') %}
+<div class="panel">
+  <h2 style="margin-top:0">Open a new case</h2>
+  <form method="post" action="/cases/new" style="display:flex; flex-direction:column; gap:.6rem; max-width:32rem;">
+    <input name="title" placeholder="Case title" required>
+    <textarea name="description" placeholder="Description" rows="3"></textarea>
+    <button type="submit" style="align-self:flex-start">Create case</button>
+  </form>
+</div>
+{% endif %}
+
+{% if cases %}
+<table>
+<tr><th>Case #</th><th>Title</th><th>Status</th><th>Opened</th><th>By</th></tr>
+{% for c in cases %}
+<tr>
+  <td><a href="/cases/{{ c.id }}">{{ c.case_number }}</a></td>
+  <td>{{ c.title }}</td>
+  <td><span class="badge {{ c.status }}">{{ c.status }}</span></td>
+  <td>{{ c.created_at }}</td>
+  <td>{{ c.created_by }}</td>
+</tr>
+{% endfor %}
+</table>
+{% else %}<p class="muted">No cases yet.</p>{% endif %}
+{% endblock %}

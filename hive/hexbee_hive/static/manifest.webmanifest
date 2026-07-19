@@ -1,0 +1,13 @@
+{
+  "name": "HexBee Forensics",
+  "short_name": "HexBee",
+  "description": "Distributed DFIR field companion — detect, isolate, analyse.",
+  "start_url": "/field",
+  "display": "standalone",
+  "background_color": "#1f1a10",
+  "theme_color": "#1f1a10",
+  "icons": [
+    { "src": "/static/logo-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/static/logo-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

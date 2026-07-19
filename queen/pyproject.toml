@@ -1,0 +1,16 @@
+[project]
+name = "hexbee-queen"
+version = "0.1.0"
+description = "HexBee Queen — analyst workstation CLI for the Hive"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+hexbee-queen = "hexbee_queen.cli:main"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["hexbee_queen*"]

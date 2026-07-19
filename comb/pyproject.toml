@@ -1,0 +1,18 @@
+[project]
+name = "hexbee-comb"
+version = "0.1.0"
+description = "HexBee Comb — forensic triage toolkit for the Queen workstation"
+requires-python = ">=3.9"
+dependencies = [
+    "pillow>=10.0",
+]
+
+[project.scripts]
+hexbee-comb = "hexbee_comb.cli:main"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["hexbee_comb*"]

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Hive Mind — HexBee Hive{% endblock %}
+{% block content %}
+<h1>🧠 Hive Mind <span class="muted" style="font-size:.75rem">local AI analyst assistant</span></h1>
+
+<p class="muted">
+{% if ai_available %}
+  Local model <code>{{ model }}</code> is reachable — answers are generated on
+  your own hardware and never leave the LAN.
+{% else %}
+  No local model reachable. Install <a href="https://ollama.com">Ollama</a> on
+  the Queen (<code>ollama pull {{ model }}</code>) and set
+  <code>HEXBEE_AI_URL</code> to point at it. Until then Hive Mind falls back to
+  deterministic rule-based summaries — still useful, just not conversational.
+{% endif %}
+</p>
+
+<div class="panel">
+  <h2 style="margin-top:0">Ask about the evidence</h2>
+  <form id="ask-form" style="display:flex; flex-direction:column; gap:.6rem;">
+    <textarea id="question" rows="3"
+      placeholder="e.g. What happened on Scout01 around the USB insertion?"></textarea>
+    <div style="display:flex; gap:.6rem; align-items:center;">
+      <label class="muted">Scope:</label>
+      <select id="case-scope">
+        <option value="">whole Hive</option>
+        {% for c in cases %}
+        <option value="{{ c.id }}">{{ c.case_number }} — {{ c.title }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Ask</button>
+    </div>
+  </form>
+  <div id="answer" style="white-space: pre-wrap; margin-top: 1rem;"></div>
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Case summary</h2>
+  <form id="sum-form" class="inline">
+    <select id="sum-case">
+      {% for c in cases %}
+      <option value="{{ c.id }}">{{ c.case_number }} — {{ c.title }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" {% if not cases %}disabled{% endif %}>Summarize</button>
+  </form>
+  <div id="summary" style="white-space: pre-wrap; margin-top: 1rem;"></div>
+</div>
+
+<script>
+async function post(url, body) {
+  const resp = await fetch(url, { method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}) });
+  return resp.json();
+}
+document.getElementById("ask-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const out = document.getElementById("answer");
+  out.textContent = "Thinking…";
+  const caseId = document.getElementById("case-scope").value;
+  const data = await post("/api/v1/ai/ask", {
+    question: document.getElementById("question").value,
+    case_id: caseId ? parseInt(caseId) : null });
+  out.textContent = (data.answer || data.error) +
+    (data.engine ? `\n\n[engine: ${data.engine}]` : "");
+});
+document.getElementById("sum-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const out = document.getElementById("summary");
+  out.textContent = "Summarizing…";
+  const data = await post("/api/v1/ai/summarize/" +
+    document.getElementById("sum-case").value);
+  out.textContent = (data.summary || data.error) +
+    (data.engine ? `\n\n[engine: ${data.engine}]` : "");
+});
+</script>
+{% endblock %}

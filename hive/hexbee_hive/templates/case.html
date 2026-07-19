@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ case.case_number }} — HexBee Hive{% endblock %}
+{% block content %}
+<h1>{{ case.case_number }} — {{ case.title }}</h1>
+<p>
+  <span class="badge {{ case.status }}">{{ case.status }}</span>
+  <span class="muted">opened {{ case.created_at }} by {{ case.created_by }}</span>
+  &nbsp;·&nbsp; Report:
+  <a href="/api/v1/cases/{{ case.id }}/report?format=html">HTML</a> ·
+  <a href="/api/v1/cases/{{ case.id }}/report?format=json">JSON</a> ·
+  <a href="/api/v1/cases/{{ case.id }}/report?format=csv">CSV</a>
+  &nbsp;·&nbsp; <a href="/cases/{{ case.id }}/label">🏷 QR label</a>
+</p>
+{% if case.description %}<p>{{ case.description }}</p>{% endif %}
+
+<h2>Incidents</h2>
+{% if case.incidents %}
+<table>
+<tr><th>#</th><th>Title</th><th>Sev</th><th>Status</th></tr>
+{% for i in case.incidents %}
+<tr>
+  <td><a href="/incidents/{{ i.id }}">{{ i.id }}</a></td>
+  <td>{{ i.title }}</td>
+  <td class="sev sev-{{ i.severity }}">{{ i.severity }}</td>
+  <td><span class="badge {{ i.status }}">{{ i.status }}</span></td>
+</tr>
+{% endfor %}
+</table>
+{% else %}<p class="muted">No incidents assigned to this case yet.</p>{% endif %}
+
+<h2>Timeline</h2>
+{% if timeline %}
+<table>
+<tr><th>Time (UTC)</th><th>Device</th><th>Narrative</th></tr>
+{% for t in timeline %}
+<tr><td>{{ t.at }}</td><td>{{ t.device }}</td>
+    <td class="sev-{{ t.severity }}">{{ t.narrative }}</td></tr>
+{% endfor %}
+</table>
+{% else %}<p class="muted">Timeline is empty until incidents are assigned.</p>{% endif %}
+
+<h2>Investigator notes</h2>
+{% for n in case.notes %}
+<div class="panel"><strong>{{ n.author }}</strong>
+  <span class="muted">{{ n.created_at }}</span><br>{{ n.body }}</div>
+{% else %}<p class="muted">No notes.</p>{% endfor %}
+
+{% if user.role in ('investigator', 'administrator') %}
+<form method="post" action="/cases/{{ case.id }}/notes/new"
+      style="display:flex; flex-direction:column; gap:.6rem; max-width:40rem;">
+  <textarea name="body" placeholder="Add a note…" rows="3" required></textarea>
+  <button type="submit" style="align-self:flex-start">Add note</button>
+</form>
+{% endif %}
+{% endblock %}

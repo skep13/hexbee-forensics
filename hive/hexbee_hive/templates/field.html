@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Field — HexBee{% endblock %}
+{% block content %}
+<h1>📱 Field companion</h1>
+<p class="muted">Add this page to your iPhone home screen (Share → Add to Home
+Screen) for one-tap field access. Scan a case's QR label with the camera to
+jump straight to it.</p>
+
+<div class="cards">
+  <div class="card"><div class="num">{{ stats.incidents_open }}</div><div class="lbl">Open incidents</div></div>
+  <div class="card"><div class="num">{{ stats.cases_open }}</div><div class="lbl">Open cases</div></div>
+  <div class="card"><div class="num">{{ stats.events }}</div><div class="lbl">Events</div></div>
+</div>
+
+{% if user.role in ('investigator', 'administrator') %}
+<div class="panel">
+  <h2 style="margin-top:0">📷 Photograph evidence</h2>
+  <form method="post" action="/field/upload" enctype="multipart/form-data"
+        style="display:flex; flex-direction:column; gap:.7rem;">
+    <input type="file" name="photo" accept="image/*" capture="environment" required>
+    <select name="case_id">
+      <option value="">no case</option>
+      {% for c in cases %}
+      <option value="{{ c.id }}">{{ c.case_number }} — {{ c.title }}</option>
+      {% endfor %}
+    </select>
+    <input name="note" placeholder="note (location, item, context…)">
+    <button type="submit">Upload — hash into evidence chain</button>
+  </form>
+</div>
+{% endif %}
+
+<h2>Open incidents</h2>
+{% for i in incidents %}
+<div class="panel">
+  <a href="/incidents/{{ i.id }}"><strong>#{{ i.id }}</strong> {{ i.title }}</a><br>
+  <span class="muted">sev {{ i.severity }} · {{ i.opened_at }}</span>
+</div>
+{% else %}<p class="muted">None open.</p>{% endfor %}
+
+<h2>Recent cases</h2>
+{% for c in cases %}
+<div class="panel">
+  <a href="/cases/{{ c.id }}"><strong>{{ c.case_number }}</strong> {{ c.title }}</a>
+  <span class="badge {{ c.status }}">{{ c.status }}</span><br>
+  <a class="muted" href="/cases/{{ c.id }}/label">print QR label</a>
+</div>
+{% else %}<p class="muted">No cases.</p>{% endfor %}
+{% endblock %}

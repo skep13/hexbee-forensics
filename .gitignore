@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# HexBee runtime data (never commit evidence or databases)
+dev-data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+data/
+evidence/
+exports/
+
+# Offline content is user-supplied, not part of the source
+*.mbtiles
+*.zim
+
+# Local dev helper with machine-specific absolute paths
+run_dev.cmd
+
+# ESP-IDF build output
+scout/firmware/build/
+scout/firmware/sdkconfig
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp

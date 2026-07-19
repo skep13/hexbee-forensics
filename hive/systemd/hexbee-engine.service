@@ -1,0 +1,22 @@
+[Unit]
+Description=HexBee Hive ingest engine (MQTT -> evidence log)
+After=network-online.target mosquitto.service
+Wants=network-online.target
+Requires=mosquitto.service
+
+[Service]
+Type=simple
+User=hexbee
+Group=hexbee
+EnvironmentFile=-/etc/hexbee/hive.env
+ExecStart=/opt/hexbee/venv/bin/hexbee-hive engine
+Restart=always
+RestartSec=5
+# Pi 3B+ has 1 GB total; keep the engine well-bounded.
+MemoryMax=200M
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/hexbee
+
+[Install]
+WantedBy=multi-user.target

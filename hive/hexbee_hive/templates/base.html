@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}HexBee Hive{% endblock %}</title>
+<link rel="icon" type="image/png" sizes="64x64" href="/static/logo-64.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/logo-180.png">
+<link rel="manifest" href="/static/manifest.webmanifest">
+<meta name="theme-color" content="#1f1a10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="HexBee">
+<style>
+:root {
+  --honey: #f0b429; --dark: #1f1a10; --panel: #2b2416; --line: #4a3f26;
+  --text: #efe8d8; --muted: #a89c80; --crit: #e5484d; --warn: #e8871e;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; background: var(--dark);
+       color: var(--text); }
+nav { display: flex; align-items: center; gap: 1.2rem; padding: .7rem 1.2rem;
+      background: var(--panel); border-bottom: 2px solid var(--honey); }
+nav .brand { font-weight: 700; color: var(--honey); font-size: 1.1rem;
+             text-decoration: none; display: inline-flex; align-items: center;
+             gap: .5rem; letter-spacing: .12em; }
+nav .brand img { height: 1.7rem; }
+nav .brand .white { color: var(--text); }
+nav a { color: var(--text); text-decoration: none; font-size: .95rem; }
+nav a:hover { color: var(--honey); }
+nav .who { margin-left: auto; color: var(--muted); font-size: .85rem; }
+main { max-width: 72rem; margin: 1.5rem auto; padding: 0 1.2rem; }
+h1, h2 { color: var(--honey); font-weight: 600; }
+h1 { font-size: 1.4rem; } h2 { font-size: 1.1rem; margin-top: 2rem; }
+table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line);
+         vertical-align: top; }
+th { color: var(--muted); font-weight: 600; text-transform: uppercase;
+     font-size: .72rem; letter-spacing: .05em; }
+tr:hover td { background: rgba(240, 180, 41, .05); }
+a { color: var(--honey); }
+code { background: rgba(0,0,0,.35); padding: .1rem .35rem; border-radius: 3px;
+       font-size: .82em; word-break: break-all; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+         gap: .8rem; margin: 1rem 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+        padding: .8rem 1rem; }
+.card .num { font-size: 1.6rem; font-weight: 700; color: var(--honey); }
+.card .lbl { color: var(--muted); font-size: .78rem; text-transform: uppercase; }
+.badge { display: inline-block; padding: .1rem .55rem; border-radius: 1rem;
+         font-size: .75rem; background: var(--line); color: var(--text); }
+.badge.open { background: #7a2626; } .badge.triaged { background: #7a5a26; }
+.badge.closed, .badge.ok { background: #2d5a35; }
+.sev { font-weight: 700; }
+.sev-2 { color: var(--warn); } .sev-3 { color: var(--crit); }
+form.inline { display: inline-flex; gap: .4rem; align-items: center; }
+input, select, textarea, button {
+  background: var(--dark); color: var(--text); border: 1px solid var(--line);
+  border-radius: 5px; padding: .4rem .6rem; font-size: .9rem; font-family: inherit; }
+button { background: var(--honey); color: var(--dark); font-weight: 600;
+         cursor: pointer; border: none; }
+button:hover { filter: brightness(1.1); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+         padding: 1rem 1.2rem; margin: 1rem 0; }
+.muted { color: var(--muted); font-size: .85rem; }
+.integrity-bad { color: var(--crit); font-weight: 700; }
+/* Phone-friendly: nav wraps, tables scroll sideways instead of overflowing */
+@media (max-width: 720px) {
+  nav { flex-wrap: wrap; gap: .6rem .9rem; padding: .6rem .8rem; }
+  nav .who { flex-basis: 100%; margin-left: 0; }
+  main { margin: .8rem auto; padding: 0 .7rem; }
+  table { display: block; overflow-x: auto; white-space: nowrap; }
+  input, select, textarea, button { font-size: 1rem; }
+}
+</style>
+</head>
+<body>
+<nav>
+  <a class="brand" href="/"><img src="/static/logo.svg" alt="HexBee logo"><span class="white">HEX</span>BEE</a>
+  <a href="/">Dashboard</a>
+  <a href="/incidents">Incidents</a>
+  <a href="/cases">Cases</a>
+  <a href="/search">Search</a>
+  <a href="/devices">Devices</a>
+  <a href="/iocs">IOCs</a>
+  <a href="/map">Map</a>
+  <a href="/reference">Reference</a>
+  <a href="/assistant">Hive&nbsp;Mind</a>
+  <a href="/field">Field</a>
+  {% if user and user.role == 'administrator' %}<a href="/audit">Audit</a>{% endif %}
+  <span class="who">
+    {% if user %}{{ user.username }} ({{ user.role }}) — <a href="/logout">log out</a>{% endif %}
+  </span>
+</nav>
+<main>{% block content %}{% endblock %}</main>
+</body>
+</html>

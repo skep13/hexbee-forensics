@@ -1,0 +1,28 @@
+menu "HexBee Scout Configuration"
+
+config HEXBEE_DEVICE_NAME
+    string "Scout device name"
+    default "Scout01"
+    help
+        Unique name reported in every event; shows up in the Hive as the
+        device identity.
+
+config HEXBEE_WIFI_SSID
+    string "Wi-Fi SSID"
+    default "hexbee-field"
+
+config HEXBEE_WIFI_PASSWORD
+    string "Wi-Fi password"
+    default ""
+
+config HEXBEE_MQTT_URI
+    string "MQTT broker URI"
+    default "mqtt://192.168.1.10:1883"
+    help
+        The Hive's Mosquitto broker. Use mqtts:// once TLS is provisioned.
+
+config HEXBEE_HEARTBEAT_SECONDS
+    int "Heartbeat interval (seconds)"
+    default 60
+
+endmenu

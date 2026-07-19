@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Incident #{{ incident.id }} — HexBee Hive{% endblock %}
+{% block content %}
+<h1>Incident #{{ incident.id }} — {{ incident.title }}</h1>
+<p>
+  <span class="badge {{ incident.status }}">{{ incident.status }}</span>
+  <span class="muted">opened {{ incident.opened_at }} · updated {{ incident.updated_at }}
+  · severity <span class="sev sev-{{ incident.severity }}">{{ incident.severity }}</span></span>
+  {% if incident.case_id %} · assigned to <a href="/cases/{{ incident.case_id }}">case {{ incident.case_id }}</a>{% endif %}
+</p>
+
+{% if user.role in ('investigator', 'administrator') %}
+<div class="panel">
+  <form class="inline" method="post" action="/incidents/{{ incident.id }}/status-form">
+    <label class="muted">Status:</label>
+    <select name="status">
+      {% for s in ('open', 'triaged', 'closed') %}
+      <option value="{{ s }}" {% if incident.status == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">Update</button>
+  </form>
+  &nbsp;&nbsp;
+  <form class="inline" method="post" action="/incidents/{{ incident.id }}/assign-form">
+    <label class="muted">Assign to case:</label>
+    <select name="case_id">
+      {% for c in cases %}<option value="{{ c.id }}">{{ c.case_number }} — {{ c.title }}</option>{% endfor %}
+    </select>
+    <button type="submit" {% if not cases %}disabled{% endif %}>Assign</button>
+  </form>
+</div>
+{% endif %}
+
+<h2>Timeline</h2>
+<table>
+<tr><th>Time (UTC)</th><th>Device</th><th>Narrative</th><th>Payload</th></tr>
+{% for t in timeline %}
+<tr>
+  <td>{{ t.at }}</td>
+  <td>{{ t.device }}</td>
+  <td class="sev-{{ t.severity }}">{{ t.narrative }}</td>
+  <td><code>{{ t.payload | payload_pretty }}</code></td>
+</tr>
+{% endfor %}
+</table>
+{% endblock %}

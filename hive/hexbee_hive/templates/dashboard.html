@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — HexBee Hive{% endblock %}
+{% block content %}
+<script>setTimeout(function () { location.reload(); }, 30000);</script>
+<h1>Dashboard <span class="muted" style="font-size:.7rem">auto-refreshes every 30 s</span></h1>
+
+<div class="cards">
+  <div class="card"><div class="num">{{ stats.events }}</div><div class="lbl">Events</div></div>
+  <div class="card"><div class="num">{{ stats.devices }}</div><div class="lbl">Devices</div></div>
+  <div class="card"><div class="num">{{ stats.incidents_open }}</div><div class="lbl">Open incidents</div></div>
+  <div class="card"><div class="num">{{ stats.cases_open }}</div><div class="lbl">Open cases</div></div>
+  <div class="card">
+    {% if verify.ok %}
+      <div class="num">✔</div><div class="lbl">Chain verified ({{ verify.checked }})</div>
+    {% else %}
+      <div class="num integrity-bad">✘</div>
+      <div class="lbl integrity-bad">Chain broken @ event {{ verify.first_bad_id }}</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if stats.events_by_type %}
+<div class="panel" style="display:flex; flex-wrap:wrap; gap:.5rem;">
+  {% for t, n in stats.events_by_type.items() %}
+  <span class="badge">{{ t }} × {{ n }}</span>
+  {% endfor %}
+</div>
+{% endif %}
+
+<h2>Open incidents</h2>
+{% if incidents %}
+<table>
+<tr><th>#</th><th>Opened</th><th>Title</th><th>Sev</th><th>Status</th></tr>
+{% for i in incidents %}
+<tr>
+  <td><a href="/incidents/{{ i.id }}">{{ i.id }}</a></td>
+  <td>{{ i.opened_at }}</td>
+  <td>{{ i.title }}</td>
+  <td class="sev sev-{{ i.severity }}">{{ i.severity }}</td>
+  <td><span class="badge {{ i.status }}">{{ i.status }}</span></td>
+</tr>
+{% endfor %}
+</table>
+{% else %}<p class="muted">No open incidents.</p>{% endif %}
+
+<h2>Recent events</h2>
+<table>
+<tr><th>Time (UTC)</th><th>Device</th><th>Type</th><th>Sev</th><th>Payload</th><th>Incident</th></tr>
+{% for e in recent %}
+<tr>
+  <td>{{ e.occurred_at }}</td>
+  <td>{{ e.device }}</td>
+  <td>{{ e.event_type }}</td>
+  <td class="sev sev-{{ e.severity }}">{{ e.severity }}</td>
+  <td><code>{{ e.payload | payload_pretty }}</code></td>
+  <td>{% if e.incident_id %}<a href="/incidents/{{ e.incident_id }}">#{{ e.incident_id }}</a>{% endif %}</td>
+</tr>
+{% endfor %}
+</table>
+{% endblock %}
