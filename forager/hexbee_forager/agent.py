@@ -37,8 +37,22 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _config_search_paths() -> list[Path]:
+    """Config file locations, including ones next to a USB launcher/executable
+    so a triage stick can carry its own forager.json."""
+    import sys
+
+    paths = list(CONFIG_PATHS)
+    # Beside the frozen executable (USB run), the launcher, and the CWD.
+    for base in {Path(sys.executable).resolve().parent,
+                 Path(sys.argv[0]).resolve().parent, Path.cwd()}:
+        paths.append(base / "forager.json")
+    return paths
+
+
 def discover_config(hive_url: str | None = None, ingest_key: str | None = None) -> dict:
-    """Resolve Hive URL + ingest key: explicit args -> env -> config file."""
+    """Resolve Hive URL + ingest key: explicit args -> env -> config file
+    (home, /etc, or next to the USB executable)."""
     import os
 
     cfg = {"hive_url": hive_url, "ingest_key": ingest_key}
@@ -47,7 +61,7 @@ def discover_config(hive_url: str | None = None, ingest_key: str | None = None) 
     if not cfg["ingest_key"]:
         cfg["ingest_key"] = os.environ.get("HEXBEE_INGEST_KEY")
     if not (cfg["hive_url"] and cfg["ingest_key"]):
-        for path in CONFIG_PATHS:
+        for path in _config_search_paths():
             if path.is_file():
                 try:
                     data = json.loads(path.read_text())

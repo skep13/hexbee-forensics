@@ -66,6 +66,35 @@ sudo systemctl enable --now hexbee-forager
 On Windows, register `hexbee-forager watch` as a Scheduled Task (at logon /
 startup) for the same effect.
 
+## Run from a USB stick (no install on the target)
+
+For collecting from a machine where you can't or shouldn't install anything,
+build a standalone executable — **no Python needed on the target**:
+
+```sh
+pip install pyinstaller psutil
+powershell -ExecutionPolicy Bypass -File forager/usb/build_windows.ps1
+```
+
+Copy `forager/usb/dist/HexBee-Forager-USB/` onto a stick. At the scene:
+
+- **Windows:** right-click `RUN-WINDOWS.bat` → **Run as administrator**
+- **Linux/macOS:** `sudo ./run-linux.sh`
+
+The launcher captures a collection to `collections\<host>_<time>.json`
+**on the stick** (works fully offline), and also ships it to the Hive if
+`forager.json` is present and reachable. When frozen into an executable, the
+offline spool stays **beside the executable on the USB** — nothing is written to
+the target's disk.
+
+Import offline captures later from any networked machine:
+
+```sh
+forager.exe --hive http://hive.local:8080 --key <KEY> submit "collections\*.json"
+```
+
+See [../docs/FIELD-GUIDE.md](../docs/FIELD-GUIDE.md) for the full kit runbook.
+
 ## How it fits HexBee
 
 ```

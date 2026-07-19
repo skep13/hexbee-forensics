@@ -31,9 +31,28 @@ def _banner() -> None:
           file=sys.stderr)
 
 
+def _default_spool() -> Path:
+    """Where to buffer events when the Hive is unreachable.
+
+    When frozen into an executable (e.g. run from a USB stick), keep the spool
+    *beside the executable* — i.e. on the USB — so no evidence is left on the
+    target's own disk.
+    """
+    import os
+    import sys
+
+    env = os.environ.get("HEXBEE_SPOOL_DIR")
+    if env:
+        return Path(env)
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / "collections" / "spool"
+    return Path.home() / ".hexbee-forager" / "spool"
+
+
 def _make(args) -> Forager:
     cfg = discover_config(getattr(args, "hive", None), getattr(args, "key", None))
-    return Forager(cfg["hive_url"], cfg["ingest_key"])
+    spool = Path(args.spool) if getattr(args, "spool", None) else _default_spool()
+    return Forager(cfg["hive_url"], cfg["ingest_key"], spool_dir=spool)
 
 
 def cmd_collect(args) -> int:
@@ -81,6 +100,32 @@ def cmd_status(args) -> int:
     return 0
 
 
+def cmd_submit(args) -> int:
+    """Upload one or more previously-saved collections (from `collect
+    --output`) into the Hive. This is the offline USB workflow: capture on the
+    target to the stick, then submit later from a networked machine."""
+    _banner()
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    forager = _make(args)
+    if not (forager.hive_url and forager.ingest_key):
+        print("submit needs a Hive: pass --hive/--key or set HEXBEE_HIVE_URL / "
+              "HEXBEE_INGEST_KEY.", file=sys.stderr)
+        return 1
+    total = 0
+    for f in args.files:
+        try:
+            data = json.loads(Path(f).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"{f}: skipped ({exc})", file=sys.stderr)
+            continue
+        events = data if isinstance(data, list) else data.get("events", [])
+        res = forager.ship(events)
+        total += res.get("shipped", 0)
+        print(f"{f}: shipped {res.get('shipped', 0)}, spooled {res.get('spooled', 0)}")
+    print(f"total shipped: {total}")
+    return 0
+
+
 def cmd_config(args) -> int:
     path = Path(args.path) if args.path else CONFIG_PATHS[0]
     data = {"hive_url": args.hive, "ingest_key": args.key}
@@ -99,6 +144,8 @@ def main(argv: list[str] | None = None) -> int:
                                 description="HexBee autonomous forensic collector")
     p.add_argument("--hive", help="Hive base URL (else env/config)")
     p.add_argument("--key", help="Hive ingest key (else env/config)")
+    p.add_argument("--spool", help="offline spool directory (default: beside the "
+                   "executable when run from USB, else the user home)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     c = sub.add_parser("collect", help="one-shot triage collection")
@@ -112,6 +159,10 @@ def main(argv: list[str] | None = None) -> int:
 
     s = sub.add_parser("status", help="show config and spool backlog")
     s.set_defaults(fn=cmd_status)
+
+    sm = sub.add_parser("submit", help="upload saved collection JSON files to the Hive")
+    sm.add_argument("files", nargs="+", help="JSON files from `collect --output`")
+    sm.set_defaults(fn=cmd_submit)
 
     cf = sub.add_parser("config", help="write a config file for unattended runs")
     cf.add_argument("--hive", required=True)

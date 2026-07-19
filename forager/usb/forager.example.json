@@ -1,0 +1,5 @@
+{
+  "_comment": "Rename this file to forager.json to auto-ship collections to your Hive. Delete it (or leave as .example) to capture offline onto the USB only.",
+  "hive_url": "http://hive.local:8080",
+  "ingest_key": "REPLACE-WITH-YOUR-HEXBEE-INGEST-KEY"
+}

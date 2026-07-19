@@ -34,6 +34,13 @@ run_dev.cmd
 scout/firmware/build/
 scout/firmware/sdkconfig
 
+# PyInstaller / USB build output (the exe is rebuildable, ~7 MB, per-OS)
+forager/usb/_build/
+forager/usb/dist/
+*.spec
+# A responder's real Hive key must never be committed
+forager/usb/forager.json
+
 # Editor / OS
 .vscode/
 .idea/

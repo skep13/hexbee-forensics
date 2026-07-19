@@ -10,6 +10,7 @@ workstation — with everything (analysis, maps, reference, AI) running fully
 
 > **New here? Read [docs/OVERVIEW.md](docs/OVERVIEW.md)** — how the whole system
 > works, how to use each part, and what it can acquire evidence from.
+> Deploying in the field? See the **[Field Guide](docs/FIELD-GUIDE.md)**.
 
 ```
 Target Computer ──USB──> 🐝 Scout (ESP32-S3 agent)

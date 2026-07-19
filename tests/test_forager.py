@@ -99,6 +99,48 @@ def test_watch_delta_detection(tmp_path):
 
 # -- config discovery -----------------------------------------------------
 
+def test_submit_saved_collection(db, tmp_path):
+    """Offline USB workflow: a saved collection JSON is uploaded via submit."""
+    from hexbee_hive.api import create_app
+    from hexbee_hive.config import HiveConfig
+    from hexbee_forager.cli import cmd_submit
+    import types
+
+    app = create_app(HiveConfig(data_dir=tmp_path, ingest_key="fk"), db)
+    app.testing = True
+
+    # Save a collection to a file (as `collect --output` would).
+    agent = Forager(None, None, spool_dir=tmp_path / "s", device="Forager-USB")
+    events = agent.collect(volatile_only=True)
+    saved = tmp_path / "cap.json"
+    saved.write_text(json.dumps(events))
+
+    # submit ships them; point the Forager at the test app via monkeypatched post
+    forager = Forager("http://x", "fk", spool_dir=tmp_path / "s2")
+    posted = {"n": 0}
+
+    def fake_post(chunk):
+        r = app.test_client().post("/api/v1/ingest", json=chunk,
+                                   headers={"X-HexBee-Ingest-Key": "fk"})
+        posted["n"] += len(chunk)
+        return r.status_code == 200
+    forager._post = fake_post
+
+    res = forager.ship(json.loads(saved.read_text()))
+    assert res["shipped"] == len(events) and posted["n"] == len(events)
+    assert "Forager-USB" in [r["name"] for r in db.query("SELECT name FROM devices")]
+
+
+def test_frozen_spool_beside_executable(monkeypatch, tmp_path):
+    import sys
+    from hexbee_forager.cli import _default_spool
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "forager.exe"))
+    monkeypatch.delenv("HEXBEE_SPOOL_DIR", raising=False)
+    spool = _default_spool()
+    assert spool == tmp_path / "collections" / "spool"
+
+
 def test_config_discovery_precedence(tmp_path, monkeypatch):
     # explicit args win
     cfg = discover_config("http://explicit:8080", "explicit-key")
