@@ -153,7 +153,7 @@ def render_report(result: ScanResult) -> str:
 <title>HexBee Comb — Analysis Report</title>
 <style>
  body {{ font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 64rem; }}
- h1 {{ border-bottom: 3px solid #f0b429; padding-bottom: .3rem; }}
+ h1 {{ border-bottom: 3px solid #f9b912; padding-bottom: .3rem; }}
  table {{ border-collapse: collapse; width: 100%; font-size: .85rem; }}
  th, td {{ text-align: left; padding: .35rem .5rem; border-bottom: 1px solid #ddd; }}
  th {{ background: #faf3e0; }}

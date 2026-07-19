@@ -21,23 +21,23 @@ from . import __version__
 from .analysis import render_report, scan, to_hive_events, upload
 
 _STYLE = """
- body{font-family:system-ui,sans-serif;background:#1f1a10;color:#efe8d8;margin:0}
- header{background:#2b2416;border-bottom:2px solid #f0b429;padding:.8rem 1.2rem;
-        color:#f0b429;font-weight:700;font-size:1.15rem}
+ body{font-family:system-ui,sans-serif;background:#000000;color:#f4f4f5;margin:0}
+ header{background:#0c0c0e;border-bottom:2px solid #f9b912;padding:.8rem 1.2rem;
+        color:#f9b912;font-weight:700;font-size:1.15rem}
  main{max-width:52rem;margin:1.5rem auto;padding:0 1.2rem}
- h2{color:#f0b429;font-size:1.05rem}
- .panel{background:#2b2416;border:1px solid #4a3f26;border-radius:8px;padding:1rem 1.2rem;margin:1rem 0}
- label{display:block;margin:.5rem 0 .2rem;color:#a89c80;font-size:.85rem}
- input[type=text],input[type=number]{width:100%;background:#1f1a10;color:#efe8d8;
-        border:1px solid #4a3f26;border-radius:5px;padding:.5rem;font-size:1rem}
- button{background:#f0b429;color:#1f1a10;border:none;border-radius:5px;
+ h2{color:#f9b912;font-size:1.05rem}
+ .panel{background:#0c0c0e;border:1px solid #38383f;border-radius:8px;padding:1rem 1.2rem;margin:1rem 0}
+ label{display:block;margin:.5rem 0 .2rem;color:#9a9aa2;font-size:.85rem}
+ input[type=text],input[type=number]{width:100%;background:#000000;color:#f4f4f5;
+        border:1px solid #38383f;border-radius:5px;padding:.5rem;font-size:1rem}
+ button{background:#f9b912;color:#000000;border:none;border-radius:5px;
         padding:.55rem 1.1rem;font-weight:700;font-size:1rem;cursor:pointer;margin-top:.8rem}
  .cards{display:flex;flex-wrap:wrap;gap:.8rem;margin:1rem 0}
- .card{background:#1f1a10;border:1px solid #4a3f26;border-radius:8px;padding:.6rem 1rem;min-width:7rem}
- .card .n{font-size:1.5rem;font-weight:700;color:#f0b429}
- .card .l{color:#a89c80;font-size:.75rem;text-transform:uppercase}
- a{color:#f0b429}
- .muted{color:#a89c80;font-size:.85rem}
+ .card{background:#000000;border:1px solid #38383f;border-radius:8px;padding:.6rem 1rem;min-width:7rem}
+ .card .n{font-size:1.5rem;font-weight:700;color:#f9b912}
+ .card .l{color:#9a9aa2;font-size:.75rem;text-transform:uppercase}
+ a{color:#f9b912}
+ .muted{color:#9a9aa2;font-size:.85rem}
  .row{display:flex;gap:1rem;flex-wrap:wrap}.row>div{flex:1;min-width:14rem}
 """
 

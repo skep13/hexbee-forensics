@@ -28,7 +28,7 @@ _SEV_NAMES = {0: "info", 1: "notice", 2: "warning", 3: "critical"}
 _HTML_STYLE = """
  body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 60rem;
         color: #1a1a1a; }
- h1 { border-bottom: 3px solid #f0b429; padding-bottom: .3rem; }
+ h1 { border-bottom: 3px solid #f9b912; padding-bottom: .3rem; }
  h2 { margin-top: 2rem; }
  table { border-collapse: collapse; width: 100%; }
  th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid #ddd;

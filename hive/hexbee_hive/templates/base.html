@@ -7,21 +7,22 @@
 <link rel="icon" type="image/png" sizes="64x64" href="/static/logo-64.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/static/logo-180.png">
 <link rel="manifest" href="/static/manifest.webmanifest">
-<meta name="theme-color" content="#14110b">
+<meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="HexBee">
 <style>
 /* ============================================================
    HexBee — forensic operations console
-   Industrial / utilitarian. Deep charcoal, single amber accent,
-   severity scale, monospace evidence data. Fully offline.
+   Palette from the logo: pure black, gold #f9b912, white text.
+   Severity scale, monospace evidence data. Fully offline.
    ============================================================ */
 :root{
-  --bg:#14110b; --bg-2:#1b1710; --bg-3:#231e14; --raise:#2a2416;
-  --line:#352d1c; --line-2:#473c25;
-  --text:#ece4d2; --muted:#9c9077; --faint:#6f664f;
-  --honey:#f5b82a; --honey-2:#ffca4d; --honey-dim:#b98a1c;
-  --ok:#4ec06a; --info:#8a92a0; --notice:#4d9de0; --warning:#e8871e; --crit:#e5484d;
+  /* Palette sampled directly from the HexBee logo: pure black, gold #f9b912, white */
+  --bg:#000000; --bg-2:#0c0c0e; --bg-3:#141417; --raise:#1d1d21;
+  --line:#26262b; --line-2:#38383f;
+  --text:#f4f4f5; --muted:#9a9aa2; --faint:#67676f;
+  --honey:#f9b912; --honey-2:#ffcf3f; --honey-dim:#c6900e; --bronze:#ae9044;
+  --ok:#3fb768; --info:#8a92a0; --notice:#4d9de0; --warning:#e8871e; --crit:#e5484d;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
   --mono:ui-monospace,"Cascadia Mono","JetBrains Mono","Consolas",monospace;
   --ui:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
@@ -33,15 +34,15 @@ body{
   font-family:var(--ui);color:var(--text);background:var(--bg);
   font-size:14px;line-height:1.5;
   background-image:
-    radial-gradient(1200px 600px at 78% -10%, rgba(245,184,42,.06), transparent 60%),
-    radial-gradient(900px 500px at 0% 110%, rgba(245,184,42,.04), transparent 55%);
+    radial-gradient(1200px 600px at 78% -10%, rgba(249,185,18,.06), transparent 60%),
+    radial-gradient(900px 500px at 0% 110%, rgba(249,185,18,.04), transparent 55%);
   background-attachment:fixed;
 }
 a{color:var(--honey);text-decoration:none}
 a:hover{color:var(--honey-2)}
 code,.mono{font-family:var(--mono);font-size:.86em}
 h1,h2,h3{font-weight:650;letter-spacing:-.01em}
-::selection{background:rgba(245,184,42,.28)}
+::selection{background:rgba(249,185,18,.28)}
 
 /* ---------- App shell ---------- */
 .app{display:grid;grid-template-columns:var(--sidebar) 1fr;min-height:100vh}
@@ -57,7 +58,7 @@ h1,h2,h3{font-weight:650;letter-spacing:-.01em}
   background:var(--bg-2);z-index:2;
 }
 .brand img{height:30px;width:30px;object-fit:contain;
-  filter:drop-shadow(0 0 6px rgba(245,184,42,.25))}
+  filter:drop-shadow(0 0 6px rgba(249,185,18,.25))}
 .brand .wm{font-weight:800;letter-spacing:.14em;font-size:1.02rem}
 .brand .wm .a{color:var(--text)} .brand .wm .b{color:var(--honey)}
 .brand .tag{display:block;font-size:.56rem;letter-spacing:.34em;color:var(--faint);
@@ -71,8 +72,8 @@ h1,h2,h3{font-weight:650;letter-spacing:-.01em}
 }
 .nav-link svg{width:16px;height:16px;flex:0 0 16px;stroke:currentColor;
   fill:none;stroke-width:1.7;opacity:.85}
-.nav-link:hover{background:rgba(245,184,42,.06);color:var(--text)}
-.nav-link.active{background:rgba(245,184,42,.11);color:var(--honey-2)}
+.nav-link:hover{background:rgba(249,185,18,.06);color:var(--text)}
+.nav-link.active{background:rgba(249,185,18,.11);color:var(--honey-2)}
 .nav-link.active::before{content:"";position:absolute;left:-2px;top:6px;bottom:6px;
   width:3px;border-radius:3px;background:var(--honey)}
 .app.bare{grid-template-columns:1fr}
@@ -81,7 +82,7 @@ h1,h2,h3{font-weight:650;letter-spacing:-.01em}
 .main-wrap{display:flex;flex-direction:column;min-width:0}
 .topbar{
   display:flex;align-items:center;gap:.9rem;padding:.6rem 1.2rem;
-  border-bottom:1px solid var(--line);background:rgba(20,17,11,.75);
+  border-bottom:1px solid var(--line);background:rgba(0,0,0,.72);
   backdrop-filter:blur(8px);position:sticky;top:0;z-index:5;
 }
 .hamb{display:none;background:none;border:1px solid var(--line-2);color:var(--text);
@@ -147,7 +148,7 @@ th,td{text-align:left;padding:.55rem .8rem;border-bottom:1px solid var(--line);v
 th{color:var(--faint);font-weight:600;text-transform:uppercase;font-size:.64rem;
   letter-spacing:.13em;font-family:var(--mono);background:var(--bg-3);position:sticky;top:0}
 tbody tr{transition:background .1s}
-tbody tr:hover td{background:rgba(245,184,42,.045)}
+tbody tr:hover td{background:rgba(249,185,18,.045)}
 tr:last-child td{border-bottom:none}
 td code{background:rgba(0,0,0,.35);padding:.08rem .35rem;border-radius:4px;
   border:1px solid var(--line);word-break:break-all}
@@ -187,14 +188,14 @@ td.sev.sev-2{color:var(--warning)} td.sev.sev-3{color:var(--crit)}
 input,select,textarea{background:var(--bg);color:var(--text);border:1px solid var(--line-2);
   border-radius:7px;padding:.5rem .65rem;font-size:.88rem;font-family:var(--ui)}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--honey-dim);
-  box-shadow:0 0 0 3px rgba(245,184,42,.12)}
+  box-shadow:0 0 0 3px rgba(249,185,18,.12)}
 label{color:var(--muted);font-size:.78rem}
 form.inline{display:inline-flex;gap:.4rem;align-items:center}
 .field{display:flex;flex-direction:column;gap:.3rem}
 .field label{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;font-family:var(--mono);color:var(--faint)}
 
 /* Copy blocks */
-.cmd{display:flex;align-items:center;gap:.6rem;background:#0d0b07;border:1px solid var(--line-2);
+.cmd{display:flex;align-items:center;gap:.6rem;background:#0a0a0c;border:1px solid var(--line-2);
   border-radius:8px;padding:.6rem .8rem;font-family:var(--mono);font-size:.82rem;overflow-x:auto}
 .cmd code{background:none;border:none;color:var(--honey-2);white-space:nowrap}
 .cmd .copy{margin-left:auto;flex:0 0 auto}
