@@ -122,19 +122,30 @@ Installs Mosquitto, a dedicated `hexbee` user, a virtualenv under
 (`hexbee-engine`, `hexbee-web`) that start on boot — fully headless. See
 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-## Evidence integrity
+## Evidence integrity & security
 
 Every event is appended to a SHA-256 **hash chain**
 (`event_hash = sha256(prev_hash ‖ canonical_event)`). Any retroactive edit
 or deletion breaks verification from that point forward.
 
 ```sh
-hexbee-hive verify          # on the Hive
-hexbee-queen verify         # remotely from the Queen
+hexbee-hive verify                    # verify the whole chain
+hexbee-hive anchor > start.json       # signed point-in-time tamper receipt
+hexbee-queen export 1                 # signed, court-ready evidence bundle
+hexbee-hive verify-bundle <dir>       # re-verify a bundle offline
+hexbee-hive security-check            # report security posture
 ```
 
-Analyst actions (logins, case changes, tagging, report generation) land in an
-append-only audit log for chain-of-custody support.
+- **Signed chain anchors** pin a point-in-time head so history can't be
+  silently rewound; **signed evidence bundles** (HMAC-SHA256 + per-file hashes
+  + audit trail) are verifiable offline with only the signing key.
+- **OWASP Top 10 hardening**: RBAC, HMAC CSRF tokens, strict Content-Security-
+  Policy with per-response script nonces, security headers, brute-force
+  lockout, constant-time secret comparison, PBKDF2 passwords with a strong
+  policy, and IP-stamped append-only audit logging.
+
+See **[SECURITY.md](SECURITY.md)** for the full OWASP mapping and
+**[docs/FORENSICS.md](docs/FORENSICS.md)** for the chain-of-custody model.
 
 ## Roles
 

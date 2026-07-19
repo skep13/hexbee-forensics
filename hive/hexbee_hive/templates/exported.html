@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Evidence bundle — HexBee{% endblock %}
+{% block content %}
+<div class="panel">
+  <h1>🔐 Signed evidence bundle created</h1>
+  <p>Case <strong>{{ summary.case_number }}</strong> ·
+     {{ summary.evidence_files }} evidence file(s) ·
+     chain <strong>{{ 'verified' if summary.chain_ok else 'BROKEN' }}</strong></p>
+  <p class="muted">Written on the Hive at:<br><code>{{ summary.bundle_dir }}</code></p>
+  <p class="muted">HMAC-SHA256 signature:<br><code>{{ summary.signature }}</code></p>
+  <p>Verify it offline anytime with
+     <code>hexbee-hive verify-bundle "{{ summary.bundle_dir }}"</code> — this
+     re-checks the signature and re-hashes every evidence file.</p>
+  <p><a href="/cases">← Back to cases</a></p>
+</div>
+{% endblock %}

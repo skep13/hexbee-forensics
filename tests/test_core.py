@@ -172,9 +172,9 @@ def test_password_hash_roundtrip():
 
 
 def test_authenticate_and_roles(db):
-    create_user(db, "alice", "password123", "investigator")
+    create_user(db, "alice", "correct-horse-battery", "investigator")
     assert authenticate(db, "alice", "nope") is None
-    session = authenticate(db, "alice", "password123")
+    session = authenticate(db, "alice", "correct-horse-battery")
     assert session["role"] == "investigator"
     resolved = resolve_token(db, session["token"])
     assert resolved["username"] == "alice"
@@ -187,9 +187,15 @@ def test_authenticate_and_roles(db):
 
 def test_create_user_validates(db):
     with pytest.raises(ValueError):
-        create_user(db, "bob", "short", "viewer")
+        create_user(db, "bob", "short", "viewer")           # too short
     with pytest.raises(ValueError):
-        create_user(db, "bob", "password123", "superuser")
+        create_user(db, "bob", "correct-horse-batt", "superuser")  # bad role
+    with pytest.raises(ValueError):
+        create_user(db, "bob", "password123", "viewer")     # common password
+    with pytest.raises(ValueError):
+        create_user(db, "bob", "elevenchars", "viewer")     # 11 < 12 chars
+    # a strong password is accepted
+    assert create_user(db, "bob", "a-strong-passphrase", "viewer")
 
 
 # -- search ---------------------------------------------------------------

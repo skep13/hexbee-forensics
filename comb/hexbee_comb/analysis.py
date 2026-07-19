@@ -82,8 +82,8 @@ def to_hive_events(result: ScanResult, device: str, web_cap: int = 50) -> list[d
        result.started_at)
     for f in result.executables:
         ev("executable_found",
-           {"name": f.path, "sha256": f.sha256, "size": f.size,
-            "magic": f.magic_type}, f.modified)
+           {"name": f.path, "sha256": f.sha256, "md5": f.md5, "sha1": f.sha1,
+            "size": f.size, "magic": f.magic_type}, f.modified)
     for f in result.mismatches:
         if not f.executable:
             ev("artifact_mismatch",

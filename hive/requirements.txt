@@ -3,3 +3,4 @@ paho-mqtt>=2.0
 segno>=1.6
 # Optional: offline Wikipedia (ZIM) support
 # libzim>=3.0
+# Security note: pin exact versions in production and track advisories (OWASP A06).

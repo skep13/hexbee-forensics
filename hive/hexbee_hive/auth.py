@@ -24,6 +24,25 @@ ROLES = ("administrator", "investigator", "viewer")
 _ROLE_RANK = {"viewer": 0, "investigator": 1, "administrator": 2}
 
 _PBKDF2_ITERATIONS = 600_000
+DEFAULT_MIN_PASSWORD_LENGTH = 12
+
+# Rejected outright regardless of length (NIST 800-63B "known bad" list).
+_COMMON_PASSWORDS = frozenset({
+    "password", "password1", "password123", "passw0rd", "12345678", "123456789",
+    "1234567890", "qwertyuiop", "letmein", "changeme", "admin123", "iloveyou",
+    "welcome1", "hexbee", "hexbee123", "forensics", "administrator",
+})
+
+
+def validate_password(password: str, username: str = "", min_length: int = DEFAULT_MIN_PASSWORD_LENGTH) -> None:
+    """Raise ValueError if the password fails policy. NIST 800-63B style:
+    reward length, screen against known-bad and username-derived values."""
+    if len(password) < min_length:
+        raise ValueError(f"password must be at least {min_length} characters")
+    if password.lower() in _COMMON_PASSWORDS:
+        raise ValueError("password is too common; choose something unique")
+    if username and password.lower() == username.lower():
+        raise ValueError("password must not equal the username")
 
 
 def _now() -> datetime:
@@ -53,11 +72,13 @@ def check_password(password: str, stored: str) -> bool:
         return False
 
 
-def create_user(db: Database, username: str, password: str, role: str, actor: str = "system") -> int:
+def create_user(db: Database, username: str, password: str, role: str,
+                actor: str = "system", min_length: int = DEFAULT_MIN_PASSWORD_LENGTH) -> int:
     if role not in ROLES:
         raise ValueError(f"invalid role {role!r}; must be one of {ROLES}")
-    if len(password) < 8:
-        raise ValueError("password must be at least 8 characters")
+    if not username or not username.strip():
+        raise ValueError("username is required")
+    validate_password(password, username, min_length)
     cur = db.execute(
         "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
         (username, hash_password(password), role, _fmt(_now())),
@@ -66,20 +87,28 @@ def create_user(db: Database, username: str, password: str, role: str, actor: st
     return cur.lastrowid
 
 
-def authenticate(db: Database, username: str, password: str, ttl_hours: int = 12) -> dict | None:
-    """Verify credentials; on success mint an API token."""
+def authenticate(db: Database, username: str, password: str, ttl_hours: int = 12,
+                 source_ip: str = "") -> dict | None:
+    """Verify credentials; on success mint an API token. `source_ip` is
+    recorded in the audit trail for incident response."""
+    ip_note = f"ip={source_ip}" if source_ip else ""
     row = db.query_one(
         "SELECT * FROM users WHERE username = ? AND disabled = 0", (username,)
     )
-    if row is None or not check_password(password, row["password_hash"]):
-        audit(db, username, "login_failed")
+    # Always run the KDF (even for unknown users) to avoid a username-
+    # enumeration timing oracle.
+    stored = row["password_hash"] if row else (
+        "pbkdf2:sha256:600000:" + "00" * 16 + ":" + "0" * 64)
+    ok = check_password(password, stored)
+    if row is None or not ok:
+        audit(db, username or "(blank)", "login_failed", ip_note)
         return None
     token = secrets.token_urlsafe(32)
     db.execute(
         "INSERT INTO api_tokens (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
         (token, row["id"], _fmt(_now()), _fmt(_now() + timedelta(hours=ttl_hours))),
     )
-    audit(db, username, "login_ok")
+    audit(db, username, "login_ok", ip_note)
     return {"token": token, "username": row["username"], "role": row["role"]}
 
 

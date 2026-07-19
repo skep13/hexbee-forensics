@@ -254,6 +254,34 @@ def cmd_verify(_args) -> int:
     return 2
 
 
+def cmd_anchor(args) -> int:
+    client = _load_client()
+    anchor = client.anchor()
+    print(json.dumps(anchor, indent=2))
+    if args.output:
+        Path(args.output).write_text(json.dumps(anchor, indent=2), encoding="utf-8")
+        print(f"\nAnchor receipt saved to {args.output}")
+    return 0
+
+
+def cmd_anchor_verify(args) -> int:
+    client = _load_client()
+    anchor = json.loads(Path(args.file).read_text(encoding="utf-8"))
+    result = client.verify_anchor(anchor)
+    print(("OK — " if result["ok"] else "FAILED — ") + result["reason"])
+    return 0 if result["ok"] else 2
+
+
+def cmd_export(args) -> int:
+    client = _load_client()
+    summary = client.export_case(args.case_id)
+    print(f"Signed evidence bundle created on the Hive:\n  {summary['bundle_dir']}")
+    print(f"  case {summary['case_number']} · {summary['evidence_files']} evidence file(s) · "
+          f"chain {'OK' if summary['chain_ok'] else 'BROKEN'}")
+    print(f"  signature: {summary['signature']}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="hexbee-queen", description="HexBee analyst CLI")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -337,6 +365,16 @@ def main(argv: list[str] | None = None) -> int:
     asum.set_defaults(fn=cmd_ai_summarize)
 
     sub.add_parser("verify", help="verify evidence hash chain").set_defaults(fn=cmd_verify)
+
+    an = sub.add_parser("anchor", help="get a signed chain-anchor receipt")
+    an.add_argument("-o", "--output", help="save the anchor JSON to a file")
+    an.set_defaults(fn=cmd_anchor)
+    anv = sub.add_parser("anchor-verify", help="verify a saved anchor against the Hive")
+    anv.add_argument("file")
+    anv.set_defaults(fn=cmd_anchor_verify)
+    ex = sub.add_parser("export", help="create a signed evidence bundle for a case")
+    ex.add_argument("case_id", type=int)
+    ex.set_defaults(fn=cmd_export)
 
     args = p.parse_args(argv)
     try:

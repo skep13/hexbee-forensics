@@ -7,6 +7,7 @@
 <div class="panel">
   <h2 style="margin-top:0">Open a new case</h2>
   <form method="post" action="/cases/new" style="display:flex; flex-direction:column; gap:.6rem; max-width:32rem;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
     <input name="title" placeholder="Case title" required>
     <textarea name="description" placeholder="Description" rows="3"></textarea>
     <button type="submit" style="align-self:flex-start">Create case</button>

@@ -13,9 +13,14 @@
     Opened {{ case.created_at }} · {{ case.created_by }}</div>
 </div>
 <p style="text-align:center">
-  <button onclick="window.print()">🖨 Print label</button>
+  <button id="print-btn">🖨 Print label</button>
   &nbsp; <a href="/cases/{{ case.id }}">back to case</a>
 </p>
+<script nonce="{{ csp_nonce }}">
+  document.getElementById("print-btn").addEventListener("click", function () {
+    window.print();
+  });
+</script>
 <style>
 @media print {
   nav, button, p:last-of-type { display: none !important; }

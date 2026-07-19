@@ -62,14 +62,15 @@ def cmd_web(_args) -> int:
 def cmd_user_add(args) -> int:
     from .auth import create_user
 
-    _, db = _open_db()
+    cfg, db = _open_db()
     password = getpass.getpass(f"Password for {args.username}: ")
     confirm = getpass.getpass("Confirm: ")
     if password != confirm:
         print("Passwords do not match.", file=sys.stderr)
         return 1
     try:
-        create_user(db, args.username, password, args.role, actor="cli")
+        create_user(db, args.username, password, args.role, actor="cli",
+                    min_length=cfg.min_password_length)
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -128,6 +129,90 @@ def cmd_report(args) -> int:
     return 0
 
 
+def cmd_anchor(_args) -> int:
+    from .evidence_export import chain_anchor
+    import json
+
+    cfg, db = _open_db()
+    print(json.dumps(chain_anchor(db, cfg.signing_key), indent=2))
+    return 0
+
+
+def cmd_export(args) -> int:
+    from .evidence_export import export_case
+
+    cfg, db = _open_db()
+    summary = export_case(db, cfg, args.case_id, cfg.signing_key, actor="cli")
+    if summary is None:
+        print(f"No case with id {args.case_id}.", file=sys.stderr)
+        return 1
+    print(f"Signed evidence bundle written to:\n  {summary['bundle_dir']}")
+    print(f"  case: {summary['case_number']}  evidence files: {summary['evidence_files']}"
+          f"  chain: {'OK' if summary['chain_ok'] else 'BROKEN'}")
+    print(f"  signature: {summary['signature']}")
+    return 0
+
+
+def cmd_verify_bundle(args) -> int:
+    from .evidence_export import verify_bundle
+
+    cfg, _ = _open_db()
+    result = verify_bundle(args.bundle_dir, cfg.signing_key)
+    if result["ok"]:
+        print(f"OK — {result['reason']}"
+              + (f" ({result.get('evidence_files', 0)} evidence files)"))
+        return 0
+    print(f"FAILED — {result['reason']}", file=sys.stderr)
+    for issue in result.get("files", []):
+        print(f"  - {issue}", file=sys.stderr)
+    return 2
+
+
+def cmd_security_check(_args) -> int:
+    """Print a security posture report; non-zero exit on critical findings."""
+    from .maps import TileStore  # noqa: F401  (ensures package import is healthy)
+
+    cfg, db = _open_db()
+    critical, warn, ok = [], [], []
+
+    if cfg.ingest_key:
+        (ok if len(cfg.ingest_key) >= 16 else warn).append(
+            "ingest key set" if len(cfg.ingest_key) >= 16 else "ingest key is short (<16 chars)")
+    else:
+        warn.append("REST ingest disabled (no HEXBEE_INGEST_KEY) — MQTT-only")
+    if cfg.secure_cookies:
+        ok.append("secure cookies + HSTS enabled (HTTPS deployment)")
+    else:
+        warn.append("HEXBEE_SECURE_COOKIES off — serve behind HTTPS in production")
+    if cfg.signing_key_env:
+        ok.append("explicit signing key configured")
+    else:
+        ok.append("signing key auto-generated and persisted (0600)")
+    admins = db.query_one("SELECT COUNT(*) AS n FROM users WHERE role='administrator' AND disabled=0")
+    if not admins or admins["n"] == 0:
+        warn.append("no active administrator account exists yet")
+    else:
+        ok.append(f"{admins['n']} active administrator account(s)")
+    from .integrity import verify_chain
+    chain = verify_chain(db)
+    (ok if chain["ok"] else critical).append(
+        f"evidence chain verified ({chain['checked']} events)" if chain["ok"]
+        else f"EVIDENCE CHAIN BROKEN at event {chain['first_bad_id']}")
+    weak = db.query("SELECT username FROM users")
+    ok.append(f"password policy: min {cfg.min_password_length} chars, common-password screening")
+    ok.append(f"login lockout: {cfg.login_max_attempts} attempts / {cfg.login_lockout_seconds}s")
+
+    print("HexBee Hive — security posture\n" + "=" * 32)
+    for item in ok:
+        print(f"  [ ok ] {item}")
+    for item in warn:
+        print(f"  [warn] {item}")
+    for item in critical:
+        print(f"  [CRIT] {item}")
+    print(f"\n{len(ok)} ok, {len(warn)} warnings, {len(critical)} critical.")
+    return 1 if critical else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="hexbee-hive", description="HexBee Hive server")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -154,6 +239,15 @@ def main(argv: list[str] | None = None) -> int:
     rep.add_argument("--format", choices=("html", "json", "csv"), default="html")
     rep.add_argument("-o", "--output")
     rep.set_defaults(fn=cmd_report)
+
+    sub.add_parser("anchor", help="print a signed chain-anchor receipt").set_defaults(fn=cmd_anchor)
+    exp = sub.add_parser("export", help="write a signed evidence bundle for a case")
+    exp.add_argument("case_id", type=int)
+    exp.set_defaults(fn=cmd_export)
+    vb = sub.add_parser("verify-bundle", help="verify a signed evidence bundle offline")
+    vb.add_argument("bundle_dir")
+    vb.set_defaults(fn=cmd_verify_bundle)
+    sub.add_parser("security-check", help="report security posture").set_defaults(fn=cmd_security_check)
 
     args = parser.parse_args(argv)
     return args.fn(args)

@@ -28,6 +28,7 @@ REST surface (all under /api/v1):
 
 from __future__ import annotations
 
+import hmac
 import json
 from functools import wraps
 
@@ -60,12 +61,20 @@ from .config import HiveConfig
 from .correlate import Correlator
 from .db import Database
 from .ai import LocalAI, ask as ai_ask, summarize_case
+from .evidence_export import chain_anchor, export_case, verify_anchor
 from .ingest import process_raw_event
 from .integrity import verify_chain
 from .ioc import add_ioc, list_hits, list_iocs, remove_ioc
 from .maps import PLACEHOLDER_TILE, TileStore, evidence_points
 from .reference import ReferenceLibrary, render_markdown_basic
 from .normalize import NormalizationError
+from .security import (
+    LoginRateLimiter,
+    apply_security_headers,
+    csrf_token,
+    csrf_valid,
+    new_nonce,
+)
 from .reports import case_report_data, render_csv, render_html, render_json
 from .search import search_events, stats
 from .store import EVENT_SELECT, audit, event_to_dict
@@ -80,6 +89,49 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
     tiles = TileStore(cfg.maps_dir)
     library = ReferenceLibrary(cfg.reference_dir)
     ai_engine = LocalAI(cfg.ai_url, cfg.ai_model)
+    limiter = LoginRateLimiter(cfg.login_max_attempts, cfg.login_lockout_seconds)
+    signing_key = cfg.signing_key
+    # Reject oversized bodies before they hit handlers (evidence photos capped
+    # separately in the field-upload route).
+    app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
+
+    def client_ip() -> str:
+        # Behind the documented reverse proxy, honour a single X-Forwarded-For
+        # hop; otherwise the socket address.
+        fwd = request.headers.get("X-Forwarded-For", "")
+        return fwd.split(",")[0].strip() if fwd else (request.remote_addr or "")
+
+    # -- security: headers, CSP nonce, CSRF -------------------------------
+
+    @app.before_request
+    def _assign_nonce():
+        g.csp_nonce = new_nonce()
+
+    @app.before_request
+    def _csrf_protect():
+        # State-changing dashboard forms (cookie-authenticated) must carry a
+        # valid CSRF token. The JSON API uses bearer tokens in a custom header,
+        # which browsers can't attach cross-site, so it is exempt. Login is
+        # exempt (no session yet) and guarded by rate limiting.
+        if request.method not in ("POST", "PUT", "DELETE", "PATCH"):
+            return None
+        if request.path.startswith("/api/") or request.path == "/login":
+            return None
+        token = request.cookies.get(COOKIE, "")
+        if not csrf_valid(token, request.form.get("_csrf", ""), signing_key):
+            return render_template("error.html", user=None,
+                                   message="Invalid or missing CSRF token — reload and retry."), 403
+        return None
+
+    @app.after_request
+    def _security_headers(resp):
+        return apply_security_headers(resp, getattr(g, "csp_nonce", ""), cfg.secure_cookies)
+
+    @app.context_processor
+    def _inject_security():
+        token = request.cookies.get(COOKIE, "")
+        return {"csp_nonce": getattr(g, "csp_nonce", ""),
+                "csrf_token": csrf_token(token, signing_key) if token else ""}
 
     # -- auth plumbing ----------------------------------------------------
 
@@ -117,11 +169,16 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
     @app.post("/api/v1/login")
     def api_login():
         body = request.get_json(silent=True) or {}
-        session = authenticate(
-            db, body.get("username", ""), body.get("password", ""), cfg.token_ttl_hours
-        )
+        username, ip = body.get("username", ""), client_ip()
+        if limiter.locked(username, ip):
+            audit(db, username or "(blank)", "login_locked", f"ip={ip}")
+            return jsonify(error="too many attempts; try again later"), 429
+        session = authenticate(db, username, body.get("password", ""),
+                               cfg.token_ttl_hours, source_ip=ip)
         if session is None:
+            limiter.record_failure(username, ip)
             return jsonify(error="invalid credentials"), 401
+        limiter.reset(username, ip)
         return jsonify(session)
 
     @app.post("/api/v1/logout")
@@ -136,7 +193,9 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
     def api_ingest():
         if not cfg.ingest_key:
             return jsonify(error="REST ingest disabled (set HEXBEE_INGEST_KEY)"), 403
-        if request.headers.get("X-HexBee-Ingest-Key", "") != cfg.ingest_key:
+        # Constant-time compare — no timing oracle on the ingest key.
+        if not hmac.compare_digest(
+                request.headers.get("X-HexBee-Ingest-Key", ""), cfg.ingest_key):
             return jsonify(error="bad ingest key"), 401
         raw = request.get_json(silent=True)
         if raw is None:
@@ -453,6 +512,30 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
     def api_verify():
         return jsonify(verify_chain(db))
 
+    @app.get("/api/v1/anchor")
+    @require("viewer")
+    def api_anchor():
+        return jsonify(chain_anchor(db, signing_key))
+
+    @app.post("/api/v1/anchor/verify")
+    @require("viewer")
+    def api_anchor_verify():
+        anchor = request.get_json(silent=True) or {}
+        try:
+            return jsonify(verify_anchor(db, anchor, signing_key))
+        except (KeyError, TypeError):
+            return jsonify(error="malformed anchor"), 400
+
+    @app.post("/api/v1/cases/<int:case_id>/export")
+    @require("investigator")
+    def api_export_case(case_id: int):
+        summary = export_case(db, cfg, case_id, signing_key, g.user["username"])
+        if summary is None:
+            return jsonify(error="not found"), 404
+        audit(db, g.user["username"], "case_exported",
+              f"case {case_id} -> {summary['bundle_dir']}")
+        return jsonify(summary), 201
+
     @app.get("/api/v1/audit")
     @require("administrator")
     def api_audit():
@@ -472,18 +555,25 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
 
     @app.post("/login")
     def login_submit():
-        session = authenticate(
-            db,
-            request.form.get("username", ""),
-            request.form.get("password", ""),
-            cfg.token_ttl_hours,
-        )
+        username, ip = request.form.get("username", ""), client_ip()
+        if limiter.locked(username, ip):
+            audit(db, username or "(blank)", "login_locked", f"ip={ip}")
+            return render_template(
+                "login.html", error="Too many attempts. Try again shortly."), 429
+        session = authenticate(db, username, request.form.get("password", ""),
+                               cfg.token_ttl_hours, source_ip=ip)
         if session is None:
+            limiter.record_failure(username, ip)
             return render_template("login.html", error="Invalid credentials"), 401
-        resp = make_response(redirect(request.args.get("next") or url_for("dashboard")))
+        limiter.reset(username, ip)
+        # Only redirect to local paths — never an attacker-supplied absolute URL.
+        nxt = request.args.get("next") or url_for("dashboard")
+        if not nxt.startswith("/") or nxt.startswith("//"):
+            nxt = url_for("dashboard")
+        resp = make_response(redirect(nxt))
         resp.set_cookie(
             COOKIE, session["token"], httponly=True, samesite="Lax",
-            max_age=cfg.token_ttl_hours * 3600,
+            secure=cfg.secure_cookies, max_age=cfg.token_ttl_hours * 3600,
         )
         return resp
 
@@ -698,6 +788,17 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
         if body and get_case(db, case_id) is not None:
             add_note(db, case_id, g.user["username"], body)
         return redirect(url_for("case_page", case_id=case_id))
+
+    @app.post("/cases/<int:case_id>/export-form")
+    @require("investigator", api=False)
+    def case_export_form(case_id: int):
+        summary = export_case(db, cfg, case_id, signing_key, g.user["username"])
+        if summary is None:
+            return render_template("error.html", user=g.user,
+                                   message="Case not found"), 404
+        audit(db, g.user["username"], "case_exported",
+              f"case {case_id} -> {summary['bundle_dir']}")
+        return render_template("exported.html", user=g.user, summary=summary)
 
     @app.post("/incidents/<int:incident_id>/assign-form")
     @require("investigator", api=False)

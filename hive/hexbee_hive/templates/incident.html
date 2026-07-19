@@ -12,6 +12,7 @@
 {% if user.role in ('investigator', 'administrator') %}
 <div class="panel">
   <form class="inline" method="post" action="/incidents/{{ incident.id }}/status-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
     <label class="muted">Status:</label>
     <select name="status">
       {% for s in ('open', 'triaged', 'closed') %}
@@ -22,6 +23,7 @@
   </form>
   &nbsp;&nbsp;
   <form class="inline" method="post" action="/incidents/{{ incident.id }}/assign-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
     <label class="muted">Assign to case:</label>
     <select name="case_id">
       {% for c in cases %}<option value="{{ c.id }}">{{ c.case_number }} — {{ c.title }}</option>{% endfor %}

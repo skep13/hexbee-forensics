@@ -1,4 +1,4 @@
-"""IOC engine: validation, matching, ingest escalation, API surface."""
+﻿"""IOC engine: validation, matching, ingest escalation, API surface."""
 
 import pytest
 
@@ -33,7 +33,7 @@ def test_ingest_escalates_ioc_match_and_opens_incident(db):
     add_ioc(db, "filename", "evil.exe", "known dropper", "analyst")
     correlator = Correlator(db, window_seconds=600)
 
-    # file_metadata is normally severity 0 — an IOC hit must force an incident.
+    # file_metadata is normally severity 0 â€” an IOC hit must force an incident.
     result = process_raw_event(
         db, correlator,
         {"device": "Scout01", "event_type": "file_metadata",
@@ -79,8 +79,8 @@ def test_ioc_api(db, tmp_path):
     from hexbee_hive.auth import create_user
     from hexbee_hive.config import HiveConfig
 
-    create_user(db, "invest", "investpass1", "investigator")
-    create_user(db, "watcher", "watcherpass1", "viewer")
+    create_user(db, "invest", "invest-strong-pass1", "investigator")
+    create_user(db, "watcher", "watcher-strong-pass1", "viewer")
     app = create_app(HiveConfig(data_dir=tmp_path, ingest_key="testkey"), db)
     app.testing = True
     client = app.test_client()
@@ -90,8 +90,8 @@ def test_ioc_api(db, tmp_path):
                             ).get_json()["token"]
         return {"Authorization": f"Bearer {token}"}
 
-    invest = login("invest", "investpass1")
-    viewer = login("watcher", "watcherpass1")
+    invest = login("invest", "invest-strong-pass1")
+    viewer = login("watcher", "watcher-strong-pass1")
 
     # RBAC: viewer reads, cannot write.
     assert client.post("/api/v1/iocs", json={"kind": "filename", "value": "evil.exe"},

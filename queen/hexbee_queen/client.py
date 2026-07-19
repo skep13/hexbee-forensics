@@ -93,6 +93,15 @@ class HiveClient:
     def verify(self) -> dict:
         return self._request("GET", "/verify")
 
+    def anchor(self) -> dict:
+        return self._request("GET", "/anchor")
+
+    def verify_anchor(self, anchor: dict) -> dict:
+        return self._request("POST", "/anchor/verify", anchor)
+
+    def export_case(self, case_id: int) -> dict:
+        return self._request("POST", f"/cases/{case_id}/export")
+
     def audit(self, limit: int = 200) -> list[dict]:
         return self._request("GET", "/audit", params={"limit": limit})["audit"]
 

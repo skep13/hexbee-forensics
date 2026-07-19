@@ -110,7 +110,25 @@ workflow docs, a forensic-hygiene fix (browser DB copies are shredded after
 reading), MIT `LICENSE`, and a hardware **bill of materials + wiring**
 ([docs/HARDWARE.md](docs/HARDWARE.md)). Published to GitHub.
 
-### Entry 10 — Scout hardware bring-up (in progress)
+### Entry 10 — Security & forensic hardening
+**Time:** _(fill in)_
+
+Raised the platform to a professional field-forensics standard:
+
+- **OWASP Top 10 pass** (see [SECURITY.md](SECURITY.md) for the full mapping):
+  strict Content-Security-Policy with **per-response script nonces**, full
+  security-header set, **HMAC CSRF tokens** on all dashboard forms,
+  **login rate-limiting + lockout**, constant-time secret comparison,
+  a strong **password policy** (NIST 800-63B style), IP-stamped audit logging,
+  secure-cookie/HSTS support, and a `hexbee-hive security-check` command.
+- **Forensic evidence upgrades** (see [docs/FORENSICS.md](docs/FORENSICS.md)):
+  **signed chain-anchor receipts** (pin the log head so history can't be
+  rewound/truncated), **HMAC-signed evidence-export bundles** (manifest +
+  per-file hashes + full audit trail, verifiable offline), and Comb
+  **multi-hash** (MD5/SHA-1/SHA-256) for cross-tool verification.
+- Test suite grew to **63 passing tests** (added `test_security.py`).
+
+### Entry 11 — Scout hardware bring-up (in progress)
 **Time:** _(fill in)_
 
 _Next hardware milestone — log as you go:_
@@ -163,8 +181,10 @@ timeline), `cases.py` (cases/notes/tags), `auth.py` (PBKDF2 + RBAC),
 `search.py` (filter + stats), `reports.py` (HTML/JSON/CSV), `ingest.py`
 (MQTT + REST pipeline), `ioc.py` (IOC watchlist + matching), `maps.py`
 (MBTiles tile server + evidence points), `reference.py` (ZIM + document
-library), `ai.py` (Hive Mind local AI + rule-based fallback), `api.py` (Flask
-REST + dashboard), `cli.py` (`hexbee-hive` command). Plus 20 HTML templates,
+library), `ai.py` (Hive Mind local AI + rule-based fallback),
+`security.py` (CSP/nonces, security headers, HMAC CSRF, login rate limiter),
+`evidence_export.py` (signed bundles + chain anchors), `api.py` (Flask
+REST + dashboard), `cli.py` (`hexbee-hive` command). Plus 22 HTML templates,
 logo/PWA static assets, `install.sh`, two systemd units, packaging.
 
 ### 👑 Queen — `queen/hexbee_queen/`

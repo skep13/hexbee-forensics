@@ -31,7 +31,15 @@ unless `HEXBEE_INGEST_KEY` is set.
 | `POST /events/<id>/tags` | investigator | `{tag}` |
 | `GET /devices` | viewer | Scout inventory |
 | `GET /verify` | viewer | hash-chain verification `{ok, checked, first_bad_id}` |
+| `GET /anchor` | viewer | signed chain-anchor receipt (tamper-evidence) |
+| `POST /anchor/verify` | viewer | verify a previously saved anchor against the log |
+| `POST /cases/<id>/export` | investigator | write a signed evidence bundle; returns `{bundle_dir, signature, ...}` |
 | `GET /audit` | administrator | `?limit=` append-only audit trail |
+
+**Security notes.** JSON API endpoints authenticate with a bearer token and are
+CSRF-exempt; browser (cookie) form posts require an HMAC `_csrf` token. Login is
+rate-limited (HTTP 429 on lockout). All responses carry a strict CSP and
+security headers. See [SECURITY.md](../SECURITY.md).
 
 ## Incidents
 

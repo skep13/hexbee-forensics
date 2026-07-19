@@ -1,4 +1,4 @@
-"""Flask API integration tests: auth, RBAC, ingest, full investigation flow."""
+﻿"""Flask API integration tests: auth, RBAC, ingest, full investigation flow."""
 
 import pytest
 
@@ -10,9 +10,9 @@ from hexbee_hive.config import HiveConfig
 @pytest.fixture
 def app(db, tmp_path):
     cfg = HiveConfig(data_dir=tmp_path, ingest_key="testkey")
-    create_user(db, "admin", "adminpass1", "administrator")
-    create_user(db, "invest", "investpass1", "investigator")
-    create_user(db, "watcher", "watcherpass1", "viewer")
+    create_user(db, "admin", "admin-strong-pass1", "administrator")
+    create_user(db, "invest", "invest-strong-pass1", "investigator")
+    create_user(db, "watcher", "watcher-strong-pass1", "viewer")
     application = create_app(cfg, db)
     application.testing = True
     return application
@@ -62,7 +62,7 @@ def test_ingest_rejects_bad_events(client):
 
 
 def test_rbac_viewer_cannot_write(client):
-    viewer = login(client, "watcher", "watcherpass1")
+    viewer = login(client, "watcher", "watcher-strong-pass1")
     resp = client.post("/api/v1/cases", json={"title": "nope"}, headers=viewer)
     assert resp.status_code == 403
     # but can read
@@ -70,8 +70,8 @@ def test_rbac_viewer_cannot_write(client):
 
 
 def test_audit_admin_only(client):
-    invest = login(client, "invest", "investpass1")
-    admin = login(client, "admin", "adminpass1")
+    invest = login(client, "invest", "invest-strong-pass1")
+    admin = login(client, "admin", "admin-strong-pass1")
     assert client.get("/api/v1/audit", headers=invest).status_code == 403
     assert client.get("/api/v1/audit", headers=admin).status_code == 200
 
@@ -85,7 +85,7 @@ def test_full_investigation_flow(client):
                       payload={"name": "evil.exe"} if event_type == "executable_found" else {})
         assert resp.status_code == 200
 
-    invest = login(client, "invest", "investpass1")
+    invest = login(client, "invest", "invest-strong-pass1")
 
     # One incident was opened and contains all four events.
     incidents = client.get("/api/v1/incidents", headers=invest).get_json()["incidents"]
@@ -124,7 +124,7 @@ def test_full_investigation_flow(client):
 
 def test_dashboard_pages_render(client):
     ingest(client, "executable_found")
-    resp = client.post("/login", data={"username": "watcher", "password": "watcherpass1"})
+    resp = client.post("/login", data={"username": "watcher", "password": "watcher-strong-pass1"})
     assert resp.status_code == 302
     cookie_headers = {}
     for page in ("/", "/incidents", "/cases", "/search", "/incidents/1"):

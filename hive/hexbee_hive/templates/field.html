@@ -17,6 +17,7 @@ jump straight to it.</p>
   <h2 style="margin-top:0">📷 Photograph evidence</h2>
   <form method="post" action="/field/upload" enctype="multipart/form-data"
         style="display:flex; flex-direction:column; gap:.7rem;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
     <input type="file" name="photo" accept="image/*" capture="environment" required>
     <select name="case_id">
       <option value="">no case</option>

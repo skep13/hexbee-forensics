@@ -8,6 +8,9 @@
 
 # Binary assets — never touch line endings
 *.png binary
+*.jpg binary
+*.jpeg binary
+*.heic binary
 *.svg binary
 *.mbtiles binary
 *.zim binary

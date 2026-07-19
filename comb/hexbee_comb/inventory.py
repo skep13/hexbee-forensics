@@ -23,23 +23,29 @@ class FileRecord:
     executable: bool
     modified: str
     created: str
+    md5: str = ""    # forensic cross-tool verification (NSRL/legacy hash sets)
+    sha1: str = ""
 
 
 def _iso(ts: float) -> str:
     return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def hash_file(path: Path) -> tuple[str, str | None]:
-    """(sha256, magic_type) in one pass."""
-    digest = hashlib.sha256()
+def hash_file(path: Path) -> tuple[str, str, str, str | None]:
+    """(sha256, md5, sha1, magic_type) in a single read pass. MD5/SHA-1 are
+    included for cross-tool verification against legacy forensic hash sets;
+    SHA-256 remains the primary integrity hash."""
+    sha256, md5, sha1 = hashlib.sha256(), hashlib.md5(), hashlib.sha1()
     header = b""
     with open(path, "rb") as fh:
         first = fh.read(HEADER_LEN)
         header = first
-        digest.update(first)
+        for h in (sha256, md5, sha1):
+            h.update(first)
         while chunk := fh.read(1024 * 1024):
-            digest.update(chunk)
-    return digest.hexdigest(), identify(header)
+            for h in (sha256, md5, sha1):
+                h.update(chunk)
+    return sha256.hexdigest(), md5.hexdigest(), sha1.hexdigest(), identify(header)
 
 
 def walk(target: str | Path, max_files: int | None = None) -> Iterator[FileRecord]:
@@ -54,7 +60,7 @@ def walk(target: str | Path, max_files: int | None = None) -> Iterator[FileRecor
             path = Path(root) / name
             try:
                 stat = path.stat()
-                sha256, magic_type = hash_file(path)
+                sha256, md5, sha1, magic_type = hash_file(path)
             except (OSError, PermissionError):
                 continue
             count += 1
@@ -67,4 +73,6 @@ def walk(target: str | Path, max_files: int | None = None) -> Iterator[FileRecor
                 executable=magic_type in EXECUTABLE_TYPES,
                 modified=_iso(stat.st_mtime),
                 created=_iso(stat.st_ctime),
+                md5=md5,
+                sha1=sha1,
             )

@@ -8,6 +8,7 @@ escalates the event to critical, opens/extends an incident, and is recorded belo
 {% if user.role in ('investigator', 'administrator') %}
 <div class="panel">
   <form class="inline" method="post" action="/iocs/new" style="flex-wrap: wrap;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
     <select name="kind">
       <option value="sha256">sha256</option>
       <option value="filename">filename</option>
@@ -36,8 +37,8 @@ escalates the event to critical, opens/extends an incident, and is recorded belo
   <td class="sev {{ 'sev-3' if i.hits else '' }}">{{ i.hits }}</td>
   <td>
     {% if user.role in ('investigator', 'administrator') %}
-    <form class="inline" method="post" action="/iocs/{{ i.id }}/delete"
-          onsubmit="return confirm('Remove this IOC?')">
+    <form class="inline confirm-remove" method="post" action="/iocs/{{ i.id }}/delete">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
       <button type="submit" style="background: var(--line); color: var(--text);">✕</button>
     </form>
     {% endif %}
@@ -62,4 +63,12 @@ escalates the event to critical, opens/extends an incident, and is recorded belo
 {% endfor %}
 </table>
 {% else %}<p class="muted">No IOC hits recorded.</p>{% endif %}
+
+<script nonce="{{ csp_nonce }}">
+  document.querySelectorAll("form.confirm-remove").forEach(function (f) {
+    f.addEventListener("submit", function (e) {
+      if (!confirm("Remove this IOC?")) e.preventDefault();
+    });
+  });
+</script>
 {% endblock %}

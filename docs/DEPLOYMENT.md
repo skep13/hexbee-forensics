@@ -49,6 +49,28 @@ investigator/viewer accounts the same way.
 | `HEXBEE_INGEST_KEY` | empty (disabled) | shared key for REST ingest |
 | `HEXBEE_CORRELATION_WINDOW` | `600` | correlation window, seconds |
 | `HEXBEE_TOKEN_TTL_HOURS` | `12` | login token lifetime |
+| `HEXBEE_SECURE_COOKIES` | `0` | set `1` when served over HTTPS (adds Secure flag + HSTS) |
+| `HEXBEE_SIGNING_KEY` | *(auto)* | HMAC key for signed exports/anchors/CSRF; auto-generated `0600` if unset |
+| `HEXBEE_MIN_PASSWORD_LENGTH` | `12` | minimum password length |
+| `HEXBEE_LOGIN_MAX_ATTEMPTS` | `5` | failed logins before lockout |
+| `HEXBEE_LOGIN_LOCKOUT_SECONDS` | `300` | lockout window |
+
+### Hardening for production
+
+Run `hexbee-hive security-check` for a posture report, then serve behind HTTPS:
+
+```sh
+# Example: nginx reverse proxy terminating TLS in front of the Hive
+#   proxy_pass http://127.0.0.1:8080;  and set X-Forwarded-For.
+# Then enable secure cookies + HSTS:
+echo "HEXBEE_SECURE_COOKIES=1" | sudo tee -a /etc/hexbee/hive.env
+echo "HEXBEE_SIGNING_KEY=$(openssl rand -hex 32)" | sudo tee -a /etc/hexbee/hive.env
+sudo systemctl restart hexbee-web
+```
+
+Back up `HEXBEE_SIGNING_KEY` (or `/var/lib/hexbee/.hexbee_signing_key`) — it is
+required to verify previously exported bundles and anchors. See
+[SECURITY.md](../SECURITY.md) and [docs/FORENSICS.md](FORENSICS.md).
 
 Restart after changes: `sudo systemctl restart hexbee-engine hexbee-web`
 

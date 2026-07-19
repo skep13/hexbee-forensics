@@ -1,4 +1,4 @@
-"""Offline maps, reference library, Hive Mind AI, field upload, QR labels."""
+﻿"""Offline maps, reference library, Hive Mind AI, field upload, QR labels."""
 
 import io
 import sqlite3
@@ -21,7 +21,7 @@ def app(db, tmp_path):
     cfg = HiveConfig(data_dir=tmp_path, ingest_key="testkey",
                      ai_url="http://127.0.0.1:1")  # unreachable on purpose
     cfg.ensure_dirs()
-    create_user(db, "invest", "investpass1", "investigator")
+    create_user(db, "invest", "invest-strong-pass1", "investigator")
     application = create_app(cfg, db)
     application.testing = True
     application.config["cfg"] = cfg
@@ -35,12 +35,20 @@ def client(app):
 
 def login(client):
     resp = client.post("/api/v1/login",
-                       json={"username": "invest", "password": "investpass1"})
+                       json={"username": "invest", "password": "invest-strong-pass1"})
     return {"Authorization": f"Bearer {resp.get_json()['token']}"}
 
 
 def cookie_login(client):
-    client.post("/login", data={"username": "invest", "password": "investpass1"})
+    client.post("/login", data={"username": "invest", "password": "invest-strong-pass1"})
+
+
+def csrf_from(client, path):
+    """Extract the CSRF token rendered into a form on `path`."""
+    import re
+    html = client.get(path).get_data(as_text=True)
+    m = re.search(r'name="_csrf" value="([^"]+)"', html)
+    return m.group(1) if m else ""
 
 
 def ingest(client, event_type, payload=None):
@@ -82,7 +90,7 @@ def test_tilestore_serves_mbtiles_with_y_flip(tmp_path):
 def test_map_points_from_gps_events(db, client):
     ingest(client, "artifact_image_gps",
            {"name": "scene.jpg", "lat": 51.5, "lon": -0.1275})
-    ingest(client, "heartbeat")  # no coords — excluded
+    ingest(client, "heartbeat")  # no coords â€” excluded
     ingest(client, "artifact_image_gps", {"name": "bad.jpg", "lat": 999, "lon": 0})
     points = evidence_points(db)
     assert len(points) == 1
@@ -180,10 +188,19 @@ def test_ai_endpoints(client):
 
 def test_field_photo_upload_chains_event(db, client, app):
     cookie_login(client)
+    token = csrf_from(client, "/field")
+    # Without the CSRF token, the upload is rejected.
+    blocked = client.post(
+        "/field/upload",
+        data={"photo": (io.BytesIO(b"\xff\xd8\xffx"), "x.jpeg")},
+        content_type="multipart/form-data",
+    )
+    assert blocked.status_code == 403
+
     resp = client.post(
         "/field/upload",
         data={"photo": (io.BytesIO(b"\xff\xd8\xffjpegdata"), "IMG_0001.jpeg"),
-              "note": "rear door, forced"},
+              "note": "rear door, forced", "_csrf": token},
         content_type="multipart/form-data",
     )
     assert resp.status_code == 200
