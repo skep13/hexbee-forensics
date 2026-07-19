@@ -1,0 +1,22 @@
+[Unit]
+Description=HexBee Forager — autonomous live-response forensic collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Read-only collection needs to see all processes/sockets, so this runs as
+# root on a system under investigation. It never modifies the host.
+User=root
+EnvironmentFile=-/etc/hexbee/forager.env
+# Or configure via /etc/hexbee/forager.json (hive_url + ingest_key).
+ExecStart=/usr/local/bin/hexbee-forager watch --interval 60
+Restart=always
+RestartSec=10
+# Hardening: the agent only reads; deny it write access to the system.
+ProtectSystem=strict
+ReadWritePaths=/root/.hexbee-forager
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

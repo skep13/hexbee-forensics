@@ -1,0 +1,20 @@
+[project]
+name = "hexbee-forager"
+version = "0.1.0"
+description = "HexBee Forager — autonomous live-response forensic collector"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+# Richer process/network/user data. Pure stdlib fallbacks work without it.
+rich = ["psutil>=5.9"]
+
+[project.scripts]
+hexbee-forager = "hexbee_forager.cli:main"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["hexbee_forager*"]

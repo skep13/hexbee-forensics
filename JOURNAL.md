@@ -128,7 +128,28 @@ Raised the platform to a professional field-forensics standard:
   **multi-hash** (MD5/SHA-1/SHA-256) for cross-tool verification.
 - Test suite grew to **63 passing tests** (added `test_security.py`).
 
-### Entry 11 — Scout hardware bring-up (in progress)
+### Entry 11 — Forager: autonomous live-response collector
+**Time:** _(fill in)_
+
+Built **HexBee Forager** (`forager/`), a read-only agent that collects forensic
+evidence from a live host on its own — no interactive input:
+
+- Cross-platform collectors (psutil + stdlib/native fallbacks): host info,
+  processes, network connections with owning process, logged-on users,
+  persistence/autoruns (registry Run keys, startup, cron, systemd), USB
+  history, and recent files.
+- Autonomous by design: Hive location auto-discovered (args → env → config
+  file); every collector runs automatically; a `watch` mode continuously
+  samples and emits `process_new` / `network_new` / `logon_new` / `usb_new`
+  events when something appears. Offline events **spool locally and retry**.
+- Ships through the same `/ingest` path as everything else, so findings are
+  hash-chained, correlated, IOC-matched, and export-ready.
+- **Live-verified**: collected 460+ real artifacts from the dev host into the
+  Hive (persistence entries, network connections with process names) — chain
+  verified over 950+ events. New event types registered in the normalizer.
+- Test suite now **73 passing** (added `test_forager.py`).
+
+### Entry 12 — Scout hardware bring-up (in progress)
 **Time:** _(fill in)_
 
 _Next hardware milestone — log as you go:_
@@ -194,6 +215,11 @@ logo/PWA static assets, `install.sh`, two systemd units, packaging.
 ### 🔬 Comb — `comb/hexbee_comb/`
 `magic.py`, `inventory.py`, `carver.py`, `diskimage.py`, `exif.py`,
 `browser.py`, `tsk.py`, `analysis.py`, `cli.py` (`hexbee-comb` command).
+
+### 🐝 Forager — `forager/hexbee_forager/`
+`collectors.py` (read-only host collectors), `agent.py` (autonomous
+orchestration, offline spool, watch-mode deltas), `cli.py` (`hexbee-forager`
+command), systemd unit.
 
 ### 🐝 Scout — `scout/`
 Firmware `main/scout_main.c`, `event_buffer.c/.h`, `usb_watch.c/.h`, CMake +

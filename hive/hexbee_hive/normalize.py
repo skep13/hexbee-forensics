@@ -50,6 +50,21 @@ EVENT_SEVERITY = {
     "carved_file": 1,
     # iPhone field companion
     "field_photo": 1,
+    # Forager (autonomous live-response collector)
+    "collection_started": 0,
+    "collection_completed": 0,
+    "host_info": 0,
+    "process_snapshot": 0,
+    "process_new": 1,
+    "network_connection": 1,
+    "network_listening": 0,
+    "network_new": 1,
+    "logon_session": 0,
+    "logon_new": 1,
+    "persistence_item": 2,
+    "usb_device": 1,
+    "usb_new": 1,
+    "recent_file": 0,
 }
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")

@@ -39,6 +39,12 @@ Target Computer ──USB──> 🐝 Scout (ESP32-S3 agent)
 - **iPhone XR field companion**: an install-to-home-screen PWA (no App Store),
   camera evidence photos hashed into the chain, and per-case **QR labels** the
   iPhone camera scans to open a case.
+- **Forager autonomous collector**: a read-only live-response agent that
+  forages forensic artifacts from a host (processes, network connections with
+  process attribution, logons, persistence/autoruns, USB history, recent files)
+  and streams them into the evidence chain **with no interactive input** —
+  one-shot triage or a continuous `watch` mode that emits `*_new` events when
+  something appears. Auto-discovers the Hive; spools offline and retries.
 - Plus the platform core: incident **correlation**, **timeline** reconstruction,
   **case management**, **IOC** matching, RBAC, search, and branded reports.
 
@@ -48,6 +54,7 @@ Target Computer ──USB──> 🐝 Scout (ESP32-S3 agent)
 |------|------------|
 | [hive/](hive/) | Hive server: MQTT+REST ingest, hash-chained SQLite evidence log, correlation, timeline, cases, IOC engine, offline map, reference library, Hive Mind AI, iPhone field PWA, QR labels, Flask dashboard + REST API |
 | [comb/](comb/) | **Comb** forensic triage toolkit (`hexbee-comb`) — inventory, carving, partitions, EXIF/GPS, browser history, Sleuth Kit, uploads findings to the Hive |
+| [forager/](forager/) | **Forager** autonomous live-response collector (`hexbee-forager`) — read-only agent that gathers processes, network, logons, autoruns, USB & recent files from a live host and streams them into the evidence chain; runs unattended with a continuous `watch` mode |
 | [queen/](queen/) | Queen analyst CLI (`hexbee-queen`) — cases, incidents, search, IOCs, AI, reports over the Hive REST API, stdlib-only |
 | [scout/firmware/](scout/firmware/) | ESP32-S3 ESP-IDF firmware: Wi-Fi, MQTT QoS 1, offline event buffering, heartbeat, USB watch (simulation mode until hardware validation) |
 | [scout/simulator/](scout/simulator/) | Python Scout simulator — drives the whole platform with realistic scenarios, no hardware needed |
