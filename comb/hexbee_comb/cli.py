@@ -95,6 +95,18 @@ def cmd_tsk_ls(args) -> int:
     return 0
 
 
+def cmd_serve(args) -> int:
+    import os
+
+    from .webui import serve
+
+    serve(args.host, args.port, defaults={
+        "hive": args.hive or os.environ.get("HEXBEE_HIVE_URL", ""),
+        "key": args.key or os.environ.get("HEXBEE_INGEST_KEY", ""),
+        "device": "Comb01"})
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="hexbee-comb",
                                 description="HexBee forensic triage toolkit")
@@ -123,6 +135,13 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("image")
     t.add_argument("--offset", type=int, default=0, help="partition start in sectors")
     t.set_defaults(fn=cmd_tsk_ls)
+
+    sv = sub.add_parser("serve", help="point-and-click web UI (no commands)")
+    sv.add_argument("--host", default="127.0.0.1")
+    sv.add_argument("--port", type=int, default=8091)
+    sv.add_argument("--hive", help="prefill Hive URL in the UI")
+    sv.add_argument("--key", help="prefill Hive ingest key in the UI")
+    sv.set_defaults(fn=cmd_serve)
 
     args = p.parse_args(argv)
     return args.fn(args)

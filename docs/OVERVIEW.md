@@ -46,7 +46,9 @@ hexbee-hive security-check         # security posture report
 ```
 
 Open `http://<hive>:8080` for the dashboard: incidents, cases, search, devices,
-IOCs, map, reference, Hive Mind, field, audit.
+IOCs, map, reference, Hive Mind, field, audit. Administrators also get an
+**Admin page** (`/admin`) for point-and-click user management, a security-posture
+report, chain verification, and downloading signed anchors — no CLI needed.
 
 ### 👑 Queen — analyst workstation (Kali ThinkPad T470)
 
@@ -84,12 +86,17 @@ The Autopsy/Magnet-AXIOM-class analysis engine. Analyzes storage and pushes
 findings into the evidence chain:
 
 ```sh
+hexbee-comb serve                                     # point-and-click web UI (no commands)
 hexbee-comb partitions evidence.dd                    # MBR/GPT map
 hexbee-comb carve evidence.dd ./carved                # recover deleted files
 hexbee-comb tsk-ls evidence.dd --offset 2048          # Sleuth Kit file listing
 hexbee-comb scan /mnt/evidence -o report.html \
     --hive http://hive.local:8080 --key <KEY>         # full triage + upload
 ```
+
+`hexbee-comb serve` opens a local browser page: type/paste the target path,
+click **Scan**, view the report, and optionally push findings to the Hive —
+the whole triage workflow with no command line.
 
 What Comb does:
 
@@ -123,6 +130,20 @@ python scout/simulator/scout_sim.py --rest http://127.0.0.1:8080 --key <KEY> --s
 Add `http://<hive>:8080/field` to the home screen. Photograph physical evidence
 (hashed into the chain), view incidents, scan case QR labels. Not a
 device-extraction tool.
+
+## Prefer clicking to typing?
+
+Most of the platform is point-and-click, no commands required:
+
+| Task | Where |
+|------|-------|
+| Investigation (incidents, cases, search, IOCs, map, AI) | Hive dashboard `http://<hive>:8080` |
+| User management, security check, chain verify, anchors | Hive dashboard → **Admin** (`/admin`) |
+| iPhone field collection + evidence photos | Home-screen app `/field` |
+| Disk/media triage (Comb) | `hexbee-comb serve` → browser UI |
+| Live collection from a target | Forager USB stick → menu launcher (double-click) |
+
+The command-line tools remain for scripting and automation.
 
 ## What it can perform forensic acquisition on
 

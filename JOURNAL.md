@@ -149,7 +149,23 @@ evidence from a live host on its own — no interactive input:
   verified over 950+ events. New event types registered in the normalizer.
 - Test suite now **73 passing** (added `test_forager.py`).
 
-### Entry 12 — Scout hardware bring-up (in progress)
+### Entry 12 — Point-and-click UIs (usability pass)
+**Time:** _(fill in)_
+
+Made the whole platform usable without the command line:
+
+- **Hive Admin page** (`/admin`, administrators): point-and-click user
+  management (create/enable/disable), a live security-posture report, chain
+  verification, and one-click signed-anchor download.
+- **Comb web UI** (`hexbee-comb serve`): a stdlib-only local browser page —
+  paste a target path, click **Scan**, view the report, optionally push to the
+  Hive. No commands, no extra dependencies.
+- **Forager USB launcher** is now a **menu** (Collect / Monitor / Status) on
+  Windows and Linux, so a responder just double-clicks and picks an option.
+- Refactored the security posture into a shared `ops.py` used by both the CLI
+  and the Admin page. Tests: **81 passing** (added `test_ui.py`).
+
+### Entry 13 — Scout hardware bring-up (in progress)
 **Time:** _(fill in)_
 
 _Next hardware milestone — log as you go:_

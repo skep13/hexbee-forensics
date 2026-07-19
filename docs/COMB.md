@@ -14,6 +14,18 @@ pip install -e .        # pulls in Pillow for EXIF
 Optional: install **The Sleuth Kit** for filesystem walks inside images
 (`sudo apt install sleuthkit` on Kali). Comb detects it automatically.
 
+## Point-and-click UI
+
+Prefer not to type commands? Launch the browser UI:
+
+```sh
+hexbee-comb serve            # opens http://127.0.0.1:8091
+```
+
+Enter or paste the target path, click **Scan**, view the report in the browser,
+and optionally tick "upload to the Hive". Stdlib-only, local-only, no extra
+dependencies.
+
 ## Commands
 
 ### `scan` — inventory + artifacts from a directory or mount point

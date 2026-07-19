@@ -45,7 +45,16 @@ from flask import (
 )
 
 from . import __version__
-from .auth import authenticate, resolve_token, revoke_token, role_allows
+from .auth import (
+    ROLES,
+    authenticate,
+    create_user,
+    resolve_token,
+    revoke_token,
+    role_allows,
+    set_user_disabled,
+)
+from .ops import security_report
 from .cases import (
     add_note,
     assign_incident,
@@ -691,6 +700,49 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
     def audit_page():
         rows = db.query("SELECT * FROM audit_log ORDER BY id DESC LIMIT 300")
         return render_template("audit.html", user=g.user, entries=[dict(r) for r in rows])
+
+    # -- Admin / Operations (point-and-click, no CLI) --------------------
+
+    @app.get("/admin")
+    @require("administrator", api=False)
+    def admin_page():
+        users = [dict(r) for r in db.query(
+            "SELECT username, role, created_at, disabled FROM users ORDER BY username")]
+        return render_template("admin.html", user=g.user, users=users, roles=ROLES,
+                               posture=security_report(cfg, db))
+
+    @app.post("/admin/users/new")
+    @require("administrator", api=False)
+    def admin_user_new():
+        try:
+            create_user(db, (request.form.get("username") or "").strip(),
+                        request.form.get("password") or "",
+                        request.form.get("role") or "viewer",
+                        actor=g.user["username"], min_length=cfg.min_password_length)
+            flash = "user created"
+        except Exception as exc:
+            flash = f"error: {exc}"
+        return redirect(url_for("admin_page", flash=flash))
+
+    @app.post("/admin/users/toggle")
+    @require("administrator", api=False)
+    def admin_user_toggle():
+        username = request.form.get("username", "")
+        disable = request.form.get("action") == "disable"
+        if username == g.user["username"] and disable:
+            return redirect(url_for("admin_page", flash="you can't disable yourself"))
+        set_user_disabled(db, username, disable, g.user["username"])
+        return redirect(url_for("admin_page", flash="user updated"))
+
+    @app.get("/admin/anchor")
+    @require("administrator", api=False)
+    def admin_anchor_download():
+        import io
+        blob = json.dumps(chain_anchor(db, signing_key), indent=2)
+        audit(db, g.user["username"], "anchor_downloaded")
+        resp = Response(blob, mimetype="application/json")
+        resp.headers["Content-Disposition"] = "attachment; filename=hexbee-anchor.json"
+        return resp
 
     # -- iPhone field companion ------------------------------------------
 

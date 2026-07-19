@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Admin — HexBee Hive{% endblock %}
+{% block content %}
+<h1>Admin &amp; Operations</h1>
+{% if request.args.get('flash') %}
+<div class="panel" style="border-color: var(--honey)">{{ request.args.get('flash') }}</div>
+{% endif %}
+
+<h2>Security posture</h2>
+<div class="panel">
+  {% for item in posture.ok %}<div>✅ {{ item }}</div>{% endfor %}
+  {% for item in posture.warn %}<div style="color:var(--warn)">⚠️ {{ item }}</div>{% endfor %}
+  {% for item in posture.critical %}<div class="integrity-bad">⛔ {{ item }}</div>{% endfor %}
+  <p class="muted" style="margin-bottom:0">
+    {{ posture.ok|length }} ok · {{ posture.warn|length }} warnings ·
+    {{ posture.critical|length }} critical</p>
+</div>
+
+<h2>Evidence integrity</h2>
+<div class="panel">
+  {% if posture.chain.ok %}
+    <p>✅ Hash chain verified over {{ posture.chain.checked }} events.</p>
+  {% else %}
+    <p class="integrity-bad">⛔ Chain broken at event {{ posture.chain.first_bad_id }}.</p>
+  {% endif %}
+  <a href="/admin/anchor"><button>⬇ Download signed chain anchor</button></a>
+  <span class="muted">— a tamper-evidence receipt; keep it safe, re-verify later.</span>
+</div>
+
+<h2>Users</h2>
+<div class="panel">
+  <table>
+  <tr><th>Username</th><th>Role</th><th>Created</th><th>Status</th><th></th></tr>
+  {% for u in users %}
+  <tr>
+    <td>{{ u.username }}</td>
+    <td><span class="badge">{{ u.role }}</span></td>
+    <td>{{ u.created_at }}</td>
+    <td>{% if u.disabled %}<span class="badge open">disabled</span>{% else %}<span class="badge closed">active</span>{% endif %}</td>
+    <td>
+      <form class="inline" method="post" action="/admin/users/toggle">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <input type="hidden" name="username" value="{{ u.username }}">
+        <input type="hidden" name="action" value="{{ 'enable' if u.disabled else 'disable' }}">
+        <button type="submit" style="background:var(--line); color:var(--text);">
+          {{ 'Enable' if u.disabled else 'Disable' }}</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  </table>
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Add a user</h2>
+  <form method="post" action="/admin/users/new"
+        style="display:flex; flex-wrap:wrap; gap:.6rem; align-items:end;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <label>Username<br><input name="username" required autocomplete="off"></label>
+    <label>Password<br><input name="password" type="password" required
+           autocomplete="new-password" placeholder="min {{ posture and '12' or '12' }} chars"></label>
+    <label>Role<br>
+      <select name="role">
+        {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+      </select></label>
+    <button type="submit">Create user</button>
+  </form>
+  <p class="muted">Passwords must be at least 12 characters and not a common
+    password. Disabling a user immediately revokes their active sessions.</p>
+</div>
+{% endblock %}

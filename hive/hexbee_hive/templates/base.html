@@ -86,7 +86,7 @@ button:hover { filter: brightness(1.1); }
   <a href="/reference">Reference</a>
   <a href="/assistant">Hive&nbsp;Mind</a>
   <a href="/field">Field</a>
-  {% if user and user.role == 'administrator' %}<a href="/audit">Audit</a>{% endif %}
+  {% if user and user.role == 'administrator' %}<a href="/audit">Audit</a><a href="/admin">Admin</a>{% endif %}
   <span class="who">
     {% if user %}{{ user.username }} ({{ user.role }}) — <a href="/logout">log out</a>{% endif %}
   </span>

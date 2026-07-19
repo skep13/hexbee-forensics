@@ -57,7 +57,8 @@ This signed receipt proves later that nothing in the log was rewound.
 ## Part 2 — At the scene
 
 ### A. Collect from a LIVE computer — the Forager USB (no install)
-Plug the stick into the target and run the launcher:
+Plug the stick into the target and run the launcher — it shows a **menu**
+(Collect / Monitor / Status), so no commands to type:
 
 - **Windows:** right-click `RUN-WINDOWS.bat` → **Run as administrator**
 - **Linux/macOS:** `sudo ./run-linux.sh`
@@ -93,8 +94,11 @@ forager.exe --hive http://<pi-ip>:8080 --key <KEY> submit "collections\*.json"
 ```
 
 ### Triage seized media with Comb
-Image the drive **through a hardware write-blocker**, then:
+Image the drive **through a hardware write-blocker**, mount it read-only, then
+either use the browser UI or the command line:
 ```sh
+hexbee-comb serve                                 # point-and-click: paste path, click Scan
+# or, from the command line:
 hexbee-comb partitions evidence.dd
 sudo mount -o ro,loop,offset=$((2048*512)) evidence.dd /mnt/evi
 hexbee-comb scan /mnt/evi -o triage.html --hive http://<pi-ip>:8080 --key <KEY>

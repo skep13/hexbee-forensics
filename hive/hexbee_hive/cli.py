@@ -170,47 +170,20 @@ def cmd_verify_bundle(args) -> int:
 
 def cmd_security_check(_args) -> int:
     """Print a security posture report; non-zero exit on critical findings."""
-    from .maps import TileStore  # noqa: F401  (ensures package import is healthy)
+    from .ops import security_report
 
     cfg, db = _open_db()
-    critical, warn, ok = [], [], []
-
-    if cfg.ingest_key:
-        (ok if len(cfg.ingest_key) >= 16 else warn).append(
-            "ingest key set" if len(cfg.ingest_key) >= 16 else "ingest key is short (<16 chars)")
-    else:
-        warn.append("REST ingest disabled (no HEXBEE_INGEST_KEY) — MQTT-only")
-    if cfg.secure_cookies:
-        ok.append("secure cookies + HSTS enabled (HTTPS deployment)")
-    else:
-        warn.append("HEXBEE_SECURE_COOKIES off — serve behind HTTPS in production")
-    if cfg.signing_key_env:
-        ok.append("explicit signing key configured")
-    else:
-        ok.append("signing key auto-generated and persisted (0600)")
-    admins = db.query_one("SELECT COUNT(*) AS n FROM users WHERE role='administrator' AND disabled=0")
-    if not admins or admins["n"] == 0:
-        warn.append("no active administrator account exists yet")
-    else:
-        ok.append(f"{admins['n']} active administrator account(s)")
-    from .integrity import verify_chain
-    chain = verify_chain(db)
-    (ok if chain["ok"] else critical).append(
-        f"evidence chain verified ({chain['checked']} events)" if chain["ok"]
-        else f"EVIDENCE CHAIN BROKEN at event {chain['first_bad_id']}")
-    weak = db.query("SELECT username FROM users")
-    ok.append(f"password policy: min {cfg.min_password_length} chars, common-password screening")
-    ok.append(f"login lockout: {cfg.login_max_attempts} attempts / {cfg.login_lockout_seconds}s")
-
+    report = security_report(cfg, db)
     print("HexBee Hive — security posture\n" + "=" * 32)
-    for item in ok:
+    for item in report["ok"]:
         print(f"  [ ok ] {item}")
-    for item in warn:
+    for item in report["warn"]:
         print(f"  [warn] {item}")
-    for item in critical:
+    for item in report["critical"]:
         print(f"  [CRIT] {item}")
-    print(f"\n{len(ok)} ok, {len(warn)} warnings, {len(critical)} critical.")
-    return 1 if critical else 0
+    print(f"\n{len(report['ok'])} ok, {len(report['warn'])} warnings, "
+          f"{len(report['critical'])} critical.")
+    return 1 if report["critical"] else 0
 
 
 def main(argv: list[str] | None = None) -> int:
