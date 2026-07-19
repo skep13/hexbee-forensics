@@ -8,6 +8,9 @@ built around a distributed hive of purpose-built devices instead of a single
 workstation — with everything (analysis, maps, reference, AI) running fully
 **offline** and every artifact preserved in a tamper-evident hash chain.
 
+> **New here? Read [docs/OVERVIEW.md](docs/OVERVIEW.md)** — how the whole system
+> works, how to use each part, and what it can acquire evidence from.
+
 ```
 Target Computer ──USB──> 🐝 Scout (ESP32-S3 agent)
                               │ Wi-Fi / MQTT
@@ -58,7 +61,7 @@ Target Computer ──USB──> 🐝 Scout (ESP32-S3 agent)
 | [queen/](queen/) | Queen analyst CLI (`hexbee-queen`) — cases, incidents, search, IOCs, AI, reports over the Hive REST API, stdlib-only |
 | [scout/firmware/](scout/firmware/) | ESP32-S3 ESP-IDF firmware: Wi-Fi, MQTT QoS 1, offline event buffering, heartbeat, USB watch (simulation mode until hardware validation) |
 | [scout/simulator/](scout/simulator/) | Python Scout simulator — drives the whole platform with realistic scenarios, no hardware needed |
-| [docs/](docs/) | Architecture, deployment, and API reference |
+| [docs/](docs/) | [Overview](docs/OVERVIEW.md), architecture, deployment, Comb, forensics, and API reference |
 | [tests/](tests/) | pytest suite (48 tests) across Hive core, IOC, Comb, and field features |
 
 ## Quick start (development, any OS)
