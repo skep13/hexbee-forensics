@@ -13,14 +13,14 @@ workstation — with everything (analysis, maps, reference, AI) running fully
 > Deploying in the field? See the **[Field Guide](docs/FIELD-GUIDE.md)**.
 
 ```
-Target Computer ──USB──> 🐝 Scout (ESP32-S3 agent)
+Target Computer ──USB──> Scout (ESP32-S3 agent)
                               │ Wi-Fi / MQTT
                               ▼
-                         🏠 Hive (Raspberry Pi 3B+ evidence hub)
+                         Hive (Raspberry Pi 3B+ evidence hub)
                               │ Wi-Fi / REST
              ┌────────────────┼────────────────┐
              ▼                ▼                 ▼
-     👑 Queen (Kali/T470)  📱 iPhone XR      🧠 Hive Mind
+     Queen (Kali/T470)     iPhone XR         Hive Mind
      analysis + Comb       field companion   local AI (offline)
 ```
 
