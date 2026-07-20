@@ -8,9 +8,10 @@ built around a distributed hive of purpose-built devices instead of a single
 workstation — with everything (analysis, maps, reference, AI) running fully
 **offline** and every artifact preserved in a tamper-evident hash chain.
 
-> **New here? Read [docs/OVERVIEW.md](docs/OVERVIEW.md)** — how the whole system
-> works, how to use each part, and what it can acquire evidence from.
-> Deploying in the field? See the **[Field Guide](docs/FIELD-GUIDE.md)**.
+> **New here?** Start with **[docs/INSTALL.md](docs/INSTALL.md)** to install it,
+> then [docs/OVERVIEW.md](docs/OVERVIEW.md) for how it all works and what it can
+> acquire evidence from. Deploying in the field? See the
+> **[Field Guide](docs/FIELD-GUIDE.md)**.
 
 ```
 Target Computer ──USB──> Scout (ESP32-S3 agent)
