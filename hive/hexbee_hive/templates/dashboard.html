@@ -11,20 +11,24 @@
   <div class="actions">
     <a class="btn" href="/collect"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M5 12a7 7 0 0 1 14 0"/></svg>Collect</a>
     <a class="btn" href="/iocs">+ IOC</a>
+    {% if user.role == 'administrator' %}
     <a class="btn" href="/admin/anchor" download><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 12l5 5 5-5"/><path d="M5 21h14"/></svg>Anchor</a>
+    {% endif %}
+    {% if user.role in ('investigator', 'administrator') %}
     <a class="btn btn-primary" href="/cases">+ New Case</a>
+    {% endif %}
   </div>
 </div>
 
 <div class="tiles">
-  <div class="tile"><div class="n">{{ stats.events }}</div><div class="l">Events</div></div>
-  <div class="tile"><div class="n">{{ stats.devices }}</div><div class="l">Devices</div></div>
-  <div class="tile {{ 'crit' if stats.incidents_open else '' }}">
-    <div class="n">{{ stats.incidents_open }}</div><div class="l">Open Incidents</div></div>
-  <div class="tile"><div class="n">{{ stats.cases_open }}</div><div class="l">Open Cases</div></div>
-  <div class="tile {{ 'ok' if verify.ok else 'crit' }}">
+  <a class="tile" href="/search"><div class="n">{{ stats.events }}</div><div class="l">Events</div></a>
+  <a class="tile" href="/devices"><div class="n">{{ stats.devices }}</div><div class="l">Devices</div></a>
+  <a class="tile {{ 'crit' if stats.incidents_open else '' }}" href="/incidents">
+    <div class="n">{{ stats.incidents_open }}</div><div class="l">Open Incidents</div></a>
+  <a class="tile" href="/cases"><div class="n">{{ stats.cases_open }}</div><div class="l">Open Cases</div></a>
+  <a class="tile {{ 'ok' if verify.ok else 'crit' }}" href="{{ '/admin' if user.role == 'administrator' else '/search' }}">
     <div class="n">{{ '✓' if verify.ok else '✗' }}</div>
-    <div class="l">{{ 'Chain Verified' if verify.ok else 'Chain Broken' }}</div></div>
+    <div class="l">{{ 'Chain Verified' if verify.ok else 'Chain Broken' }}</div></a>
 </div>
 
 {% if stats.events_by_type %}
