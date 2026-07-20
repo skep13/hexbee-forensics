@@ -1,4 +1,4 @@
-# 🐝 HexBee Forensics
+# HexBee Forensics
 
 **Distributed digital forensics & incident response (DFIR) platform.**
 *Detect · Isolate · Analyse.*
