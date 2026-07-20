@@ -44,6 +44,12 @@ cd hexbee-forensics
 
 Runs the whole Hive on your computer so you can log in and click around.
 
+> **Windows one-command test:** from the repo folder just run
+> `powershell -ExecutionPolicy Bypass -File try-hexbee.ps1`.
+> It sets up a virtualenv, installs everything, starts the Hive, loads a demo
+> incident, and opens the dashboard — log in with **admin / hexbee-demo-1**.
+> (Then stop it with the `Stop-Process -Id …` line it prints.)
+
 **Windows (PowerShell):**
 ```powershell
 py -m venv .venv
