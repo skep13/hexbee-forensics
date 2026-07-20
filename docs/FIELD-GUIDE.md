@@ -7,12 +7,12 @@ each part is, see [OVERVIEW.md](OVERVIEW.md).
 
 | Device | Role | You bring |
 |--------|------|-----------|
-| 🏠 **Hive** | Raspberry Pi 3B+ evidence hub (server) | Pi + USB SSD + power |
-| 👑 **Queen** | Kali ThinkPad T470 analyst laptop | the laptop |
-| 🐝 **Forager USB** | run-from-stick live collector | a USB stick |
-| 🔬 **Comb** | disk/media triage (on the Queen) | write-blocker + cables |
-| 🐝 **Scout** | ESP32-S3 USB field agent (hardware bring-up in progress) | the board |
-| 📱 **iPhone XR** | field companion / evidence photos | the phone |
+| **Hive** | Raspberry Pi 3B+ evidence hub (server) | Pi + USB SSD + power |
+| **Queen** | Kali ThinkPad T470 analyst laptop | the laptop |
+| **Forager USB** | run-from-stick live collector | a USB stick |
+| **Comb** | disk/media triage (on the Queen) | write-blocker + cables |
+| **Scout** | ESP32-S3 USB field agent (hardware bring-up in progress) | the board |
+| **iPhone XR** | field companion / evidence photos | the phone |
 
 ---
 

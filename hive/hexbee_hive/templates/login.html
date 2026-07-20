@@ -46,7 +46,7 @@
   <div class="formside">
     <h2>Sign in</h2>
     <p class="muted" style="margin:0">Authorized investigators only.</p>
-    {% if error %}<p class="err">⛔ {{ error }}</p>{% endif %}
+    {% if error %}<p class="err">{{ error }}</p>{% endif %}
     <form method="post">
       <div class="field"><label>Username</label>
         <input name="username" autofocus autocomplete="username" required></div>

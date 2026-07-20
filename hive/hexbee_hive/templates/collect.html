@@ -9,14 +9,14 @@
 </div>
 
 {% if not ingest_enabled %}
-<div class="panel flash">⚠️ REST ingest is disabled on this Hive. An administrator must set an ingest key
+<div class="panel flash">REST ingest is disabled on this Hive. An administrator must set an ingest key
   (<code>HEXBEE_INGEST_KEY</code>) before external collectors can submit evidence.</div>
 {% endif %}
 
 <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(18rem,1fr))">
 
   <div class="card">
-    <h2 style="margin-top:0">🐝 Forager — live host</h2>
+    <h2 style="margin-top:0">Forager — live host</h2>
     <p class="muted">Read-only agent. Run it on a target computer to capture processes, network,
       logons, autoruns, USB history and recent files into the evidence chain.</p>
     <p class="muted"><strong>USB stick (no install):</strong> plug in the HexBee Forager stick and
@@ -28,7 +28,7 @@
   </div>
 
   <div class="card">
-    <h2 style="margin-top:0">🔬 Comb — disk &amp; media</h2>
+    <h2 style="margin-top:0">Comb — disk &amp; media</h2>
     <p class="muted">Triage a mounted image or drive on the Queen: hashing, carving, partitions,
       EXIF/GPS, browser history — findings flow straight into this Hive.</p>
     <p class="muted"><strong>Point-and-click:</strong> run the Comb UI — every operation
@@ -41,7 +41,7 @@
   </div>
 
   <div class="card">
-    <h2 style="margin-top:0">📱 iPhone — field companion</h2>
+    <h2 style="margin-top:0">iPhone — field companion</h2>
     <p class="muted">Photograph physical evidence straight into the chain, view incidents, scan case
       QR labels. Open on the phone and <em>Add to Home Screen</em>.</p>
     <div class="cmd"><code>{{ base_url }}/field</code>
@@ -50,7 +50,7 @@
   </div>
 
   <div class="card">
-    <h2 style="margin-top:0">🐝 Scout — USB hardware agent</h2>
+    <h2 style="margin-top:0">Scout — USB hardware agent</h2>
     <p class="muted">The ESP32-S3 field device reports USB/host activity over Wi-Fi. Firmware is in
       hardware bring-up; rehearse the full pipeline with the simulator:</p>
     <div class="cmd"><code>python scout_sim.py --rest {{ base_url }} --key {{ ingest_key or 'YOUR-INGEST-KEY' }} --scenario incident</code>

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Field — HexBee{% endblock %}
 {% block content %}
-<h1>📱 Field companion</h1>
+<h1>Field companion</h1>
 <p class="muted">Add this page to your iPhone home screen (Share → Add to Home
 Screen) for one-tap field access. Scan a case's QR label with the camera to
 jump straight to it.</p>
@@ -14,7 +14,7 @@ jump straight to it.</p>
 
 {% if user.role in ('investigator', 'administrator') %}
 <div class="panel">
-  <h2 style="margin-top:0">📷 Photograph evidence</h2>
+  <h2 style="margin-top:0">Photograph evidence</h2>
   <form method="post" action="/field/upload" enctype="multipart/form-data"
         style="display:flex; flex-direction:column; gap:.7rem;">
     <input type="hidden" name="_csrf" value="{{ csrf_token }}">

@@ -12,14 +12,14 @@ everything runs **offline** with tamper-evident integrity.
 ```
   EVIDENCE SOURCES              COLLECTION                AGGREGATION              INVESTIGATION
   ────────────────             ──────────                ───────────              ─────────────
-  live computer  ───────────▶  🐝 Forager ─┐
+  live computer  ───────────▶  Forager ─┐
   (Win/Lin/mac)                            │
-                                           ├── REST ──▶  🏠 HIVE ──── Wi-Fi ──▶  👑 QUEEN
-  disk image / ─────────────▶  🔬 Comb ────┤            (Raspberry Pi 3B+)       (Kali T470)
+                                           ├── REST ──▶  HIVE ──── Wi-Fi ──▶  QUEEN
+  disk image / ─────────────▶  Comb ────┤            (Raspberry Pi 3B+)       (Kali T470)
   USB / drive                              │            hash-chained            dashboard + CLI
                                            │            evidence log            Comb + Hive Mind
-  target PC (USB) ──────────▶  🐝 Scout ───┘            correlation, IOC,
-  (ESP32-S3 hardware)                                   timeline, cases          📱 iPhone XR
+  target PC (USB) ──────────▶  Scout ───┘            correlation, IOC,
+  (ESP32-S3 hardware)                                   timeline, cases          iPhone XR
                                                         maps, reference, AI      field companion
 ```
 
@@ -29,7 +29,7 @@ where it is normalized, checked against IOC watchlists, appended to a
 
 ## Components — what each is and how to use it
 
-### 🏠 Hive — evidence hub (Raspberry Pi 3B+)
+### Hive — evidence hub (Raspberry Pi 3B+)
 
 The always-on server. Receives events, preserves them tamper-evidently,
 correlates them into incidents, and serves the dashboard + REST API on
@@ -50,7 +50,7 @@ IOCs, map, reference, Hive Mind, field, audit. Administrators also get an
 **Admin page** (`/admin`) for point-and-click user management, a security-posture
 report, chain verification, and downloading signed anchors — no CLI needed.
 
-### 👑 Queen — analyst workstation (Kali ThinkPad T470)
+### Queen — analyst workstation (Kali ThinkPad T470)
 
 Where you investigate. Two tools, installed with `bash queen/setup-kali.sh`.
 
@@ -67,7 +67,7 @@ hexbee-queen export 42                               # signed bundle
 
 **`hexbee-comb`** — the disk/media triage engine (see below).
 
-### 🐝 Forager — autonomous live collector (software agent)
+### Forager — autonomous live collector (software agent)
 
 Runs on a live host and gathers evidence **on its own**:
 
@@ -80,7 +80,7 @@ hexbee-forager watch --interval 60  # continuous; emits *_new events on change
 Auto-discovers the Hive, spools offline if unreachable, runs unattended as a
 systemd service. Read-only: it inspects the host, never modifies it.
 
-### 🔬 Comb — disk/media triage (Queen-side)
+### Comb — disk/media triage (Queen-side)
 
 The Autopsy/Magnet-AXIOM-class analysis engine. Analyzes storage and pushes
 findings into the evidence chain:
@@ -115,7 +115,7 @@ Its unique twist: findings upload through the same `/ingest` path as live
 acquisitions, so analysis artifacts get the **same hash-chained
 chain-of-custody** as everything else. See [COMB.md](COMB.md) for detail.
 
-### 🐝 Scout — hardware USB agent (ESP32-S3)
+### Scout — hardware USB agent (ESP32-S3)
 
 The physical field device. Firmware (Wi-Fi + MQTT + offline buffering) is
 built; the USB acquisition path is **simulation-mode until hardware bring-up**.
@@ -125,7 +125,7 @@ Exercise the full pipeline without hardware:
 python scout/simulator/scout_sim.py --rest http://127.0.0.1:8080 --key <KEY> --scenario incident
 ```
 
-### 📱 iPhone XR — field companion (PWA)
+### iPhone XR — field companion (PWA)
 
 Add `http://<hive>:8080/field` to the home screen. Photograph physical evidence
 (hashed into the chain), view incidents, scan case QR labels. Not a
@@ -149,11 +149,11 @@ The command-line tools remain for scripting and automation.
 
 | Source | Via | What's acquired | Status |
 |--------|-----|-----------------|--------|
-| **Live computers** (Windows, Linux, macOS) | Forager | Volatile: processes, network connections (with owning process), logons. Persistent: autoruns/persistence, USB history, recent files | ✅ Working |
-| **Disk images** (raw/dd, E01 via ewfmount) | Comb | Partition maps, carved files, full filesystem listing (incl. deleted), hashes, EXIF/GPS, browser history | ✅ Working |
-| **Mounted storage** — internal HDD/SSD, external USB drives, SD/memory cards, network shares | Comb | Same as above (anything you can mount read-only on Kali; NTFS/FAT/exFAT/ext/HFS+/APFS) | ✅ Working |
-| **Target PC via USB** | Scout (ESP32-S3) | USB insertion detection, host triage, file metadata from attached storage | 🔧 Hardware-gated (firmware skeleton; simulation works) |
-| **Physical scene/evidence** | iPhone | Photographs hashed into the evidence chain | ✅ Working |
+| **Live computers** (Windows, Linux, macOS) | Forager | Volatile: processes, network connections (with owning process), logons. Persistent: autoruns/persistence, USB history, recent files | Working |
+| **Disk images** (raw/dd, E01 via ewfmount) | Comb | Partition maps, carved files, full filesystem listing (incl. deleted), hashes, EXIF/GPS, browser history | Working |
+| **Mounted storage** — internal HDD/SSD, external USB drives, SD/memory cards, network shares | Comb | Same as above (anything you can mount read-only on Kali; NTFS/FAT/exFAT/ext/HFS+/APFS) | Working |
+| **Target PC via USB** | Scout (ESP32-S3) | USB insertion detection, host triage, file metadata from attached storage | Hardware-gated (firmware skeleton; simulation works) |
+| **Physical scene/evidence** | iPhone | Photographs hashed into the evidence chain | Working |
 
 **Out of scope** (important for real casework):
 

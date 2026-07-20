@@ -5,10 +5,10 @@
   <div><h1>Admin &amp; Operations</h1>
     <p class="sub">Users, security posture, and evidence-integrity operations.</p></div>
   <div class="actions">
-    <a class="btn" href="/admin/anchor" download>⬇ Anchor receipt</a>
+    <a class="btn" href="/admin/anchor" download>Anchor receipt</a>
     <form class="inline" method="post" action="/admin/correlate">
       <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-      <button type="submit">↻ Re-correlate</button>
+      <button type="submit">Re-correlate</button>
     </form>
   </div>
 </div>
@@ -18,9 +18,9 @@
 
 <h2>Security posture</h2>
 <div class="panel">
-  {% for item in posture.ok %}<div>✅ {{ item }}</div>{% endfor %}
-  {% for item in posture.warn %}<div style="color:var(--warn)">⚠️ {{ item }}</div>{% endfor %}
-  {% for item in posture.critical %}<div class="integrity-bad">⛔ {{ item }}</div>{% endfor %}
+  {% for item in posture.ok %}<div style="color:var(--ok)"><strong>OK</strong> &nbsp;{{ item }}</div>{% endfor %}
+  {% for item in posture.warn %}<div style="color:var(--warn)"><strong>WARN</strong> &nbsp;{{ item }}</div>{% endfor %}
+  {% for item in posture.critical %}<div class="integrity-bad"><strong>CRITICAL</strong> &nbsp;{{ item }}</div>{% endfor %}
   <p class="muted" style="margin-bottom:0">
     {{ posture.ok|length }} ok · {{ posture.warn|length }} warnings ·
     {{ posture.critical|length }} critical</p>
@@ -29,11 +29,11 @@
 <h2>Evidence integrity</h2>
 <div class="panel">
   {% if posture.chain.ok %}
-    <p>✅ Hash chain verified over {{ posture.chain.checked }} events.</p>
+    <p style="color:var(--ok)"><strong>OK</strong> &nbsp;Hash chain verified over {{ posture.chain.checked }} events.</p>
   {% else %}
-    <p class="integrity-bad">⛔ Chain broken at event {{ posture.chain.first_bad_id }}.</p>
+    <p class="integrity-bad"><strong>CRITICAL</strong> &nbsp;Chain broken at event {{ posture.chain.first_bad_id }}.</p>
   {% endif %}
-  <a href="/admin/anchor"><button>⬇ Download signed chain anchor</button></a>
+  <a href="/admin/anchor"><button>Download signed chain anchor</button></a>
   <span class="muted">— a tamper-evidence receipt; keep it safe, re-verify later.</span>
 </div>
 

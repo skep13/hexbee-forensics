@@ -160,7 +160,7 @@ def render_report(result: ScanResult) -> str:
  code {{ background: #f5f5f5; font-size: .85em; word-break: break-all; }}
  .muted {{ color: #777; }}
 </style></head><body>
-<h1>🐝 HexBee Comb — Analysis Report</h1>
+<h1>HexBee Comb — Analysis Report</h1>
 <p class="muted">Target <code>{escape(result.target)}</code> ·
  {result.started_at} → {result.finished_at} · comb {__version__}</p>
 <p><strong>{len(result.files)}</strong> files inventoried ·

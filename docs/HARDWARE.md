@@ -16,20 +16,20 @@ building the physical kit.
 ```
    Target PC                  Field Wi-Fi
    ┌────────┐   USB-C    ┌──────────────────┐   Wi-Fi   ┌───────────────┐
-   │ suspect│──────────▶│ 🐝 Scout          │──────────▶│ 🏠 Hive        │
+   │ suspect│──────────▶│ Scout          │──────────▶│ Hive        │
    │ machine│   (OTG)   │ ESP32-S3          │   MQTT    │ Raspberry Pi   │
    └────────┘           │ + LiPo (optional) │           │ 3B+ + USB SSD  │
                         └──────────────────┘           └───────┬───────┘
                                                                 │ Wi-Fi / REST
                                                     ┌───────────┴───────────┐
                                                     ▼                       ▼
-                                            👑 Queen (Kali T470)      📱 iPhone XR
+                                            Queen (Kali T470)      iPhone XR
                                             analyst laptop            field companion
 ```
 
 ---
 
-## 🐝 Scout — Bill of Materials
+## Scout — Bill of Materials
 
 | # | Component | Qty | Notes |
 |---|-----------|-----|-------|
@@ -74,7 +74,7 @@ implemented vs. hardware-gated.
 
 ---
 
-## 🏠 Hive — Bill of Materials
+## Hive — Bill of Materials
 
 | # | Component | Qty | Notes |
 |---|-----------|-----|-------|
@@ -101,7 +101,7 @@ boot. See [docs/DEPLOYMENT.md](DEPLOYMENT.md).
 
 ---
 
-## 👑 Queen — analyst workstation
+## Queen — analyst workstation
 
 | Component | Notes |
 |-----------|-------|
@@ -112,7 +112,7 @@ Sleuth Kit). Optional local AI via Ollama on the same laptop.
 
 ---
 
-## 📱 iPhone XR — field companion
+## iPhone XR — field companion
 
 | Component | Notes |
 |-----------|-------|

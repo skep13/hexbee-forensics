@@ -83,7 +83,7 @@ class _Handler(BaseHTTPRequestHandler):
             f"<a href='{h}' class='{'on' if h == active else ''}'>{t}</a>" for h, t in _NAV)
         return (f"<!doctype html><html><head><meta charset='utf-8'>"
                 f"<title>HexBee Comb</title><style>{_STYLE}</style></head><body>"
-                f"<header><span class='brand'>🔬 HexBee Comb</span><nav>{nav}</nav></header>"
+                f"<header><span class='brand'>HexBee Comb</span><nav>{nav}</nav></header>"
                 f"<main>{inner}<p class='muted'>Comb {__version__} · local analyst UI · "
                 f"read-only — never modifies evidence</p></main></body></html>")
 
@@ -168,7 +168,7 @@ class _Handler(BaseHTTPRequestHandler):
                 f"<input type='text' name='hive' value='{_esc(d.get('hive',''))}' placeholder='http://hive.local:8080'></div>"
                 f"<div><label>Ingest key</label><input type='text' name='key' value='{_esc(d.get('key',''))}'></div></div>"
                 f"<label>Device name</label><input type='text' name='device' value='{_esc(d.get('device','Comb01'))}'></div>"
-                "<button type='submit'>🔬 Scan</button></form></div>")
+                "<button type='submit'>Scan</button></form></div>")
 
     def _carve_form(self) -> str:
         d = self._defaults()
@@ -200,7 +200,7 @@ class _Handler(BaseHTTPRequestHandler):
             try:
                 resp = upload(to_hive_events(result, device=f.get("device", "Comb01")),
                               f["hive"], f["key"])
-                ship = f"<p>📤 Uploaded <strong>{resp.get('stored', 0)}</strong> events to the Hive.</p>"
+                ship = f"<p>Uploaded <strong>{resp.get('stored', 0)}</strong> events to the Hive.</p>"
             except Exception as exc:
                 ship = f"<p class='err'>Upload failed: {_esc(exc)}</p>"
         cards = "".join(
@@ -211,7 +211,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.server.last_summary = (
             f"<div class='panel'><h2 style='margin-top:0'>Last scan: <code>{_esc(path)}</code></h2>"
             f"<div class='cards'>{cards}</div>{ship}"
-            "<a href='/report' target='_blank'>📄 Open full report</a></div>")
+            "<a href='/report' target='_blank'>Open full report</a></div>")
         self.send_response(303); self.send_header("Location", "/"); self.end_headers()
 
     def _do_partitions(self, f: dict):

@@ -58,9 +58,9 @@
       if (px < -20 || py < -20 || px > w + 20 || py > h + 20) continue;
       const m = document.createElement("div");
       m.title = p.label;
-      m.textContent = "⬢";
-      m.style.cssText = `position:absolute; left:${px - 9}px; top:${py - 12}px;` +
-        "color:#f0b429; font-size:18px; text-shadow:0 0 4px #000; cursor:pointer;";
+      m.style.cssText = `position:absolute; left:${px - 6}px; top:${py - 6}px;` +
+        "width:12px; height:12px; border-radius:50%; background:#f9b912;" +
+        "border:2px solid #000; box-shadow:0 0 5px #000; cursor:pointer;";
       if (p.incident_id) m.onclick = () => location.href = "/incidents/" + p.incident_id;
       el.appendChild(m);
     }

@@ -1,4 +1,4 @@
-# 🐝 HexBee Forager
+# HexBee Forager
 
 An **autonomous live-response forensic collector**. A worker bee that forages
 evidence on its own: it runs on a live host, collects volatile and persistent
@@ -15,10 +15,10 @@ forensic artifacts, and streams them into the Hive's hash-chained evidence log
 | Collector | Artifacts | Volatile? |
 |-----------|-----------|-----------|
 | host_info | hostname, OS, arch, users, IPs, boot time | — |
-| processes | running processes (pid, name, user, cmdline) | ✓ |
-| network | active connections + listening ports (+ owning pid) | ✓ |
-| logons | logged-on users / sessions | ✓ |
-| usb | USB device history (Win USBSTOR registry / `lsusb`) | ✓ |
+| processes | running processes (pid, name, user, cmdline) | |
+| network | active connections + listening ports (+ owning pid) | |
+| logons | logged-on users / sessions | |
+| usb | USB device history (Win USBSTOR registry / `lsusb`) | |
 | autoruns | persistence: registry Run keys, startup, cron, systemd, shell init | — |
 | recent_files | files modified recently in user locations | — |
 
@@ -98,7 +98,7 @@ See [../docs/FIELD-GUIDE.md](../docs/FIELD-GUIDE.md) for the full kit runbook.
 ## How it fits HexBee
 
 ```
-   live host ──▶ 🐝 Forager (this) ──REST /ingest──▶ 🏠 Hive evidence chain
+   live host ──▶ Forager (this) ──REST /ingest──▶ Hive evidence chain
                   read-only agent                      correlation → incidents
                   offline spool + retry                IOC match, timeline, map
 ```

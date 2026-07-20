@@ -27,7 +27,7 @@
     <div class="n">{{ stats.incidents_open }}</div><div class="l">Open Incidents</div></a>
   <a class="tile" href="/cases"><div class="n">{{ stats.cases_open }}</div><div class="l">Open Cases</div></a>
   <a class="tile {{ 'ok' if verify.ok else 'crit' }}" href="{{ '/admin' if user.role == 'administrator' else '/search' }}">
-    <div class="n">{{ '✓' if verify.ok else '✗' }}</div>
+    <div class="n">{{ 'OK' if verify.ok else 'BAD' }}</div>
     <div class="l">{{ 'Chain Verified' if verify.ok else 'Chain Broken' }}</div></a>
 </div>
 

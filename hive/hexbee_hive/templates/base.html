@@ -309,7 +309,7 @@ form.inline{display:inline-flex;gap:.4rem;align-items:center}
   document.querySelectorAll('[data-copy]').forEach(function(el){
     el.addEventListener('click',function(){
       navigator.clipboard.writeText(el.getAttribute('data-copy')).then(function(){
-        var o=el.textContent;el.textContent='copied ✓';setTimeout(function(){el.textContent=o},1200);});
+        var o=el.textContent;el.textContent='copied';setTimeout(function(){el.textContent=o},1200);});
     });
   });
 })();

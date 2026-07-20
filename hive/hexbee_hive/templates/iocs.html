@@ -41,7 +41,7 @@
     {% if user.role in ('investigator', 'administrator') %}
     <form class="inline confirm-remove" method="post" action="/iocs/{{ i.id }}/delete">
       <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-      <button class="btn-sm" type="submit">✕</button>
+      <button class="btn-sm" type="submit">Remove</button>
     </form>
     {% endif %}
   </td>

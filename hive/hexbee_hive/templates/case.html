@@ -9,13 +9,13 @@
   <a href="/api/v1/cases/{{ case.id }}/report?format=html">HTML</a> ·
   <a href="/api/v1/cases/{{ case.id }}/report?format=json">JSON</a> ·
   <a href="/api/v1/cases/{{ case.id }}/report?format=csv">CSV</a>
-  &nbsp;·&nbsp; <a href="/cases/{{ case.id }}/label">🏷 QR label</a>
+  &nbsp;·&nbsp; <a href="/cases/{{ case.id }}/label">QR label</a>
   {% if user.role in ('investigator', 'administrator') %}
   &nbsp;·&nbsp;
   <form class="inline" method="post" action="/cases/{{ case.id }}/export-form"
         style="display:inline">
     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-    <button type="submit" style="padding:.15rem .5rem; font-size:.8rem;">🔐 Signed bundle</button>
+    <button type="submit" style="padding:.15rem .5rem; font-size:.8rem;">Signed bundle</button>
   </form>
   {% endif %}
 </p>

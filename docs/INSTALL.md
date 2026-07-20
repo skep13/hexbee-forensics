@@ -8,9 +8,9 @@ whole thing on one computer, then deploy the real kit.
 - [Get the code](#get-the-code)
 - [Quick local install](#quick-local-install-one-machine-any-os) — try it in 2 minutes
 - [Full kit](#full-kit-install)
-  - [🏠 Hive](#-hive--raspberry-pi-3b) · [👑 Queen](#-queen--kali-laptop) ·
-    [🐝 Forager](#-forager--collector-agent--usb-stick) · [🔬 Comb](#-comb--disk-triage) ·
-    [🐝 Scout](#-scout--esp32-s3-firmware)
+  - [Hive](#hive--raspberry-pi-3b) · [Queen](#queen--kali-laptop) ·
+    [Forager](#forager--collector-agent--usb-stick) · [Comb](#comb--disk-triage) ·
+    [Scout](#scout--esp32-s3-firmware)
 - [Optional offline data](#optional-offline-data)
 - [Troubleshooting](#troubleshooting)
 
@@ -87,7 +87,7 @@ python scout/simulator/scout_sim.py --rest http://127.0.0.1:8080 --key devkey --
 
 ## Full kit install
 
-### 🏠 Hive — Raspberry Pi 3B+
+### Hive — Raspberry Pi 3B+
 
 The always-on evidence hub. On the Pi (Raspberry Pi OS Lite 64-bit, ideally
 booting from a USB SSD):
@@ -114,7 +114,7 @@ sudo -u hexbee HEXBEE_DATA_DIR=/var/lib/hexbee \
 Dashboard: **http://\<pi-ip\>:8080**. Full detail and hardening in
 [DEPLOYMENT.md](DEPLOYMENT.md).
 
-### 👑 Queen — Kali laptop
+### Queen — Kali laptop
 
 Installs both the analyst CLI and the Comb triage toolkit in one step:
 
@@ -129,7 +129,7 @@ hexbee-queen status
 `hexbee-comb`, and `apt` for **Sleuth Kit**. Most investigation happens in the
 Hive dashboard; the CLI is for scripting and quick queries.
 
-### 🐝 Forager — collector agent / USB stick
+### Forager — collector agent / USB stick
 
 **Install as a tool** (on a machine you'll collect from, or the Queen):
 ```sh
@@ -149,7 +149,7 @@ Copy `forager/usb/dist/HexBee-Forager-USB/` onto a stick. At the scene, run
 `RUN-WINDOWS.bat` and pick **Collect**. See
 [../forager/README.md](../forager/README.md).
 
-### 🔬 Comb — disk triage
+### Comb — disk triage
 
 Installed by `setup-kali.sh`. To install it standalone:
 ```sh
@@ -158,7 +158,7 @@ sudo apt install sleuthkit          # optional: deep filesystem walks
 hexbee-comb serve                   # point-and-click UI at http://127.0.0.1:8091
 ```
 
-### 🐝 Scout — ESP32-S3 firmware
+### Scout — ESP32-S3 firmware
 
 Hardware-optional. Without a board, use the simulator (Quick-local section
 above). With ESP-IDF v5.x installed and a board attached:

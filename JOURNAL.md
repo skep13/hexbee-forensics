@@ -1,4 +1,4 @@
-# 🐝 HexBee Forensics — Build Journal
+# HexBee Forensics — Build Journal
 
 A distributed digital forensics & incident response (DFIR) platform.
 **Detect · Isolate · Analyse.**
@@ -182,20 +182,20 @@ _Next hardware milestone — log as you go:_
 
 ## Hardware used
 
-### 🐝 Scout — ESP32-S3
+### Scout — ESP32-S3
 USB-OTG field agent that plugs into a target computer. Flash storage only,
 limited RAM, USB/battery powered. **Constraints:** acquisition and triage
 only — no heavy analysis, no databases; everything it sends is small JSON.
 
-### 🏠 Hive — Raspberry Pi 3B+
+### Hive — Raspberry Pi 3B+
 Always-on, headless evidence hub. Quad-core Cortex-A53, **1 GB RAM**, boots
 from USB SSD. **Constraints:** 1 GB RAM forces SQLite over PostgreSQL,
 event-driven processing over batch jobs, and memory-capped services.
 
-### 👑 Queen — Lenovo ThinkPad T470 (Kali Linux)
+### Queen — Lenovo ThinkPad T470 (Kali Linux)
 Analyst workstation where heavy analysis (Comb) runs. No significant limits.
 
-### 📱 iPhone XR — field validation terminal
+### iPhone XR — field validation terminal
 Not an acquisition device: human validation, QR scanning, evidence
 photography, and offline field reference via a home-screen web app.
 
@@ -209,7 +209,7 @@ assembly.
 Python 3 unless noted; Scout firmware is C/ESP-IDF; front-end is vanilla
 HTML/CSS/JS.
 
-### 🏠 Hive — `hive/hexbee_hive/`
+### Hive — `hive/hexbee_hive/`
 `config.py` (env config + data-dir layout), `db.py` (SQLite schema +
 thread-safe wrapper), `integrity.py` (hash chain + verification),
 `normalize.py` (canonical event shape), `store.py` (single write path),
@@ -224,28 +224,28 @@ library), `ai.py` (Hive Mind local AI + rule-based fallback),
 REST + dashboard), `cli.py` (`hexbee-hive` command). Plus 22 HTML templates,
 logo/PWA static assets, `install.sh`, two systemd units, packaging.
 
-### 👑 Queen — `queen/hexbee_queen/`
+### Queen — `queen/hexbee_queen/`
 `client.py` (stdlib REST client), `cli.py` (`hexbee-queen` command),
 `setup-kali.sh`.
 
-### 🔬 Comb — `comb/hexbee_comb/`
+### Comb — `comb/hexbee_comb/`
 `magic.py`, `inventory.py`, `carver.py`, `diskimage.py`, `exif.py`,
 `browser.py`, `tsk.py`, `analysis.py`, `cli.py` (`hexbee-comb` command).
 
-### 🐝 Forager — `forager/hexbee_forager/`
+### Forager — `forager/hexbee_forager/`
 `collectors.py` (read-only host collectors), `agent.py` (autonomous
 orchestration, offline spool, watch-mode deltas), `cli.py` (`hexbee-forager`
 command), systemd unit.
 
-### 🐝 Scout — `scout/`
+### Scout — `scout/`
 Firmware `main/scout_main.c`, `event_buffer.c/.h`, `usb_watch.c/.h`, CMake +
 Kconfig + `sdkconfig.defaults`; Python simulator `scout/simulator/scout_sim.py`.
 
-### ✅ Tests — `tests/` (48 passing)
+### Tests — `tests/` (48 passing)
 `test_core.py`, `test_api.py`, `test_ioc.py`, `test_comb.py`,
 `test_field_features.py`, `conftest.py`.
 
-### 📚 Docs — `README.md`, `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`,
+### Docs — `README.md`, `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`,
 `docs/API.md`, `docs/COMB.md`, `docs/HARDWARE.md`, `JOURNAL.md`, `LICENSE`.
 
 ---
