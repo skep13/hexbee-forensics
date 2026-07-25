@@ -1,0 +1,6 @@
+## Managed components pulled from the ESP Component Registry.
+## Only needed when CONFIG_HEXBEE_USB_HOST is enabled; the build works
+## without a network once these are vendored into `managed_components/`.
+dependencies:
+  idf: ">=5.0"
+  usb_host_msc: "^1.1.0"

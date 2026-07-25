@@ -55,17 +55,24 @@ from .auth import (
     set_user_disabled,
 )
 from .ops import security_report
+from . import attack, scope as scope_mod
 from .cases import (
+    MODE_HIGHLIGHTS,
+    MODE_LABELS,
+    MODES,
     add_note,
     assign_incident,
     create_case,
     event_tags,
     get_case,
+    get_mode,
     list_cases,
     set_case_status,
     set_incident_status,
+    set_mode,
     tag_event,
 )
+from .engagement import report_data
 from .config import HiveConfig
 from .correlate import Correlator
 from .db import Database
@@ -74,7 +81,7 @@ from .evidence_export import chain_anchor, export_case, verify_anchor
 from .ingest import process_raw_event
 from .integrity import verify_chain
 from .ioc import add_ioc, list_hits, list_iocs, remove_ioc
-from .maps import PLACEHOLDER_TILE, TileStore, evidence_points
+from .maps import PLACEHOLDER_TILE, TileStore, cluster_points, evidence_points
 from .reference import ReferenceLibrary, render_markdown_basic
 from .normalize import NormalizationError
 from .security import (
@@ -91,6 +98,20 @@ from .timeline import case_timeline, incident_timeline
 
 COOKIE = "hexbee_token"
 
+# Payload keys, in preference order, that make a good one-line summary in the
+# live feed. Most producers set one of these deliberately.
+_SUMMARY_KEYS = ("summary", "name", "path", "target", "ip", "url", "rule",
+                 "finding", "account", "device", "host")
+
+
+def _event_summary(event: dict) -> str:
+    payload = event.get("payload") or {}
+    for key in _SUMMARY_KEYS:
+        value = payload.get(key)
+        if isinstance(value, (str, int, float)) and str(value).strip():
+            return str(value)[:120]
+    return event["event_type"].replace("_", " ")
+
 
 def create_app(cfg: HiveConfig, db: Database) -> Flask:
     app = Flask(__name__)
@@ -100,6 +121,23 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
     ai_engine = LocalAI(cfg.ai_url, cfg.ai_model)
     limiter = LoginRateLimiter(cfg.login_max_attempts, cfg.login_lockout_seconds)
     signing_key = cfg.signing_key
+
+    # Offline enrichment, wired up once at startup:
+    #   - the threat-intel database (if `sync-intel` has ever been run), so
+    #     pre-synced feed hits are matched at ingest with no network access;
+    #   - an ATT&CK STIX bundle from the HDD, if one is present, to refresh
+    #     technique names beyond the built-in table.
+    from .intel import IntelStore, intel_db_path
+    from .ingest import set_intel_store
+    from .syslog import RuleEngine as LogRuleEngine, ingest_records, record_from_json
+
+    intel_store = IntelStore(intel_db_path(cfg))
+    set_intel_store(intel_store)
+    attack.load_bundle()
+    log_rules = LogRuleEngine()
+    # Scope mode: 'enforce' (default) denies when no scope is defined.
+    import os as _os
+    scope_mode = _os.environ.get("HEXBEE_SCOPE_MODE", "enforce")
     # Reject oversized bodies before they hit handlers (evidence photos capped
     # separately in the field-upload route).
     app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
@@ -412,6 +450,229 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
         limit = request.args.get("limit", default=200, type=int)
         return jsonify(hits=list_hits(db, limit))
 
+    # -- REST: engagement scope -------------------------------------------
+
+    @app.get("/api/v1/scope")
+    @require("viewer")
+    def api_scope_list():
+        return jsonify(scope=scope_mod.list_rules(db, request.args.get("case_id", type=int)),
+                       summary=scope_mod.scope_summary(db), mode=scope_mode)
+
+    @app.post("/api/v1/scope")
+    @require("investigator")
+    def api_scope_add():
+        body = request.get_json(silent=True) or {}
+        try:
+            rule_id = scope_mod.add_rule(
+                db, body.get("kind", ""), body.get("value", ""),
+                g.user["username"], auth_ref=body.get("auth_ref", ""),
+                starts_at=body.get("starts_at") or None,
+                ends_at=body.get("ends_at") or None,
+                case_id=body.get("case_id"), note=body.get("note", ""))
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
+        except Exception:
+            return jsonify(error="that scope rule already exists"), 409
+        return jsonify(ok=True, rule_id=rule_id), 201
+
+    @app.delete("/api/v1/scope/<int:rule_id>")
+    @require("investigator")
+    def api_scope_delete(rule_id: int):
+        if scope_mod.remove_rule(db, rule_id, g.user["username"]):
+            return jsonify(ok=True)
+        return jsonify(error="not found"), 404
+
+    @app.get("/api/v1/scope/check")
+    @require("viewer")
+    def api_scope_check():
+        target = request.args.get("target", "")
+        if not target:
+            return jsonify(error="target is required"), 400
+        decision = scope_mod.check(db, target,
+                                   case_id=request.args.get("case_id", type=int),
+                                   mode=scope_mode)
+        return jsonify(allowed=decision.allowed, reason=decision.reason,
+                       auth_ref=decision.auth_ref, rule=decision.rule,
+                       target=target)
+
+    @app.post("/api/v1/scope/violation")
+    @require("investigator")
+    def api_scope_violation():
+        """Record a refused action. Called by Queen tooling after its own
+        check fails, so the blocked attempt joins the evidence chain."""
+        body = request.get_json(silent=True) or {}
+        target = (body.get("target") or "").strip()
+        if not target:
+            return jsonify(error="target is required"), 400
+        decision = scope_mod.Decision(False, body.get("reason", "out of scope"))
+        event_id = scope_mod.record_violation(
+            db, correlator, target, body.get("tool", "unknown"),
+            g.user["username"], decision,
+            extra=body.get("extra") if isinstance(body.get("extra"), dict) else None)
+        return jsonify(ok=True, event_id=event_id), 201
+
+    # -- REST: MITRE ATT&CK ------------------------------------------------
+
+    @app.get("/api/v1/attack/coverage")
+    @require("viewer")
+    def api_attack_coverage_all():
+        return jsonify(attack.global_coverage(db))
+
+    @app.get("/api/v1/attack/coverage/<int:case_id>")
+    @require("viewer")
+    def api_attack_coverage_case(case_id: int):
+        if get_case(db, case_id) is None:
+            return jsonify(error="not found"), 404
+        return jsonify(attack.case_coverage(db, case_id))
+
+    @app.get("/api/v1/events/<int:event_id>/techniques")
+    @require("viewer")
+    def api_event_techniques(event_id: int):
+        return jsonify(techniques=attack.event_techniques(db, event_id))
+
+    # -- REST: case mode ---------------------------------------------------
+
+    @app.post("/api/v1/cases/<int:case_id>/mode")
+    @require("investigator")
+    def api_case_mode(case_id: int):
+        body = request.get_json(silent=True) or {}
+        try:
+            ok = set_mode(db, case_id, body.get("mode", ""), g.user["username"])
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
+        return (jsonify(ok=True, mode=body["mode"]), 200) if ok else \
+               (jsonify(error="not found"), 404)
+
+    # -- REST: engagement report data --------------------------------------
+
+    @app.get("/api/v1/cases/<int:case_id>/engagement")
+    @require("viewer")
+    def api_engagement(case_id: int):
+        data = report_data(db, cfg, case_id)
+        if data is None:
+            return jsonify(error="not found"), 404
+        return jsonify(data)
+
+    # -- REST: threat intel ------------------------------------------------
+
+    @app.get("/api/v1/intel/status")
+    @require("viewer")
+    def api_intel_status():
+        return jsonify(intel_store.stats())
+
+    # -- REST: log forwarding (Windows Event Log / syslog over HTTP) -------
+
+    @app.post("/api/v1/logs")
+    def api_logs():
+        """JSON log records from a forwarder (NXLog om_http, winlogbeat).
+
+        Authenticated with the ingest key like any other collector. Records
+        run through the same anomaly rules as UDP syslog; only findings are
+        stored, never the raw log stream.
+        """
+        if not cfg.ingest_key:
+            return jsonify(error="log ingest disabled (set HEXBEE_INGEST_KEY)"), 403
+        if not hmac.compare_digest(
+                request.headers.get("X-HexBee-Ingest-Key", ""), cfg.ingest_key):
+            return jsonify(error="bad ingest key"), 401
+        raw = request.get_json(silent=True)
+        if raw is None:
+            return jsonify(error="body must be JSON"), 400
+        items = raw if isinstance(raw, list) else [raw]
+        if len(items) > 2000:
+            return jsonify(error="batch too large (max 2000 records)"), 413
+        records = [record_from_json(item, client_ip())
+                   for item in items if isinstance(item, dict)]
+        return jsonify(ingest_records(db, correlator, records, log_rules))
+
+    # -- REST: live event stream (SSE) ------------------------------------
+
+    @app.get("/api/v1/stream")
+    @require("viewer")
+    def api_stream():
+        """Server-Sent Events feed of newly stored evidence.
+
+        SSE rather than WebSockets: one long-lived HTTP response, no extra
+        protocol, no library, and it survives the Pi's flaky field Wi-Fi
+        because the browser reconnects on its own. The connection closes
+        itself after MAX_SECONDS so a forgotten tab cannot pin a thread
+        forever.
+        """
+        import time
+
+        MAX_SECONDS, POLL = 300, 2
+        since = request.args.get("since", type=int)
+        if since is None:
+            row = db.query_one("SELECT MAX(id) AS m FROM events")
+            since = (row["m"] or 0) if row else 0
+
+        def generate():
+            last = since
+            started = time.time()
+            yield f"event: hello\ndata: {json.dumps({'since': last})}\n\n"
+            while time.time() - started < MAX_SECONDS:
+                rows = db.query(
+                    EVENT_SELECT + " WHERE e.id > ? ORDER BY e.id LIMIT 50", (last,))
+                for row in rows:
+                    event = event_to_dict(row)
+                    last = event["id"]
+                    payload = {
+                        "id": event["id"], "at": event["occurred_at"],
+                        "device": event["device"],
+                        "event_type": event["event_type"],
+                        "severity": event["severity"],
+                        "incident_id": event["incident_id"],
+                        "summary": _event_summary(event),
+                    }
+                    yield f"id: {event['id']}\ndata: {json.dumps(payload)}\n\n"
+                if not rows:
+                    yield ": keepalive\n\n"   # keeps proxies from timing out
+                time.sleep(POLL)
+
+        resp = Response(generate(), mimetype="text/event-stream")
+        resp.headers["Cache-Control"] = "no-cache"
+        resp.headers["X-Accel-Buffering"] = "no"
+        resp.headers["Connection"] = "keep-alive"
+        return resp
+
+    # -- REST: quick triage -----------------------------------------------
+
+    @app.post("/api/v1/incidents/<int:incident_id>/triage")
+    @require("investigator")
+    def api_triage(incident_id: int):
+        """One-click triage: a structured prompt instead of freeform Q&A.
+
+        The analyst gets a severity call and concrete next steps rather than
+        having to compose a good question under time pressure. Falls back to
+        a rule-based assessment when no local model is running.
+        """
+        row = db.query_one("SELECT * FROM incidents WHERE id = ?", (incident_id,))
+        if row is None:
+            return jsonify(error="not found"), 404
+        incident = dict(row)
+        timeline = incident_timeline(db, incident_id)
+        coverage = attack.incident_coverage(db, incident_id)
+        tactics = [t["label"] for t in coverage["tactics"] if t["events"]]
+
+        prompt = (
+            "You are triaging a security incident. Give: (1) a one-line "
+            "severity call — informational, low, medium, or high — with your "
+            "reason; (2) the three most useful next investigative steps, as a "
+            "short numbered list; (3) one containment action if the incident "
+            "is medium or high. Be concise and specific to the evidence.\n\n"
+            f"Incident: {incident['title']}\n"
+            f"Current severity: {incident['severity']}\n"
+            f"ATT&CK tactics observed: {', '.join(tactics) or 'none attributed'}\n"
+            f"Timeline:\n" +
+            "\n".join(f"  {t['at']} [{t['device']}] {t['narrative']}"
+                      for t in timeline[:40])
+        )
+        result = ai_ask(db, ai_engine, prompt, None)
+        audit(db, g.user["username"], "incident_triage", f"incident {incident_id}")
+        return jsonify(incident_id=incident_id, assessment=result.get("answer", ""),
+                       engine=result.get("engine", ""), tactics=tactics,
+                       techniques=coverage["distinct_techniques"])
+
     # -- Offline map ------------------------------------------------------
 
     @app.get("/tiles/<int:z>/<int:x>/<int:y>")
@@ -427,7 +688,17 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
     @app.get("/api/v1/map/points")
     @require("viewer")
     def map_points():
-        return jsonify(points=evidence_points(db), source=tiles.source_name)
+        points = evidence_points(db)
+        zoom = request.args.get("zoom", type=int)
+        # Clustering is opt-in per request: the viewer asks for it with the
+        # zoom it is currently showing, and gets ungrouped points when it
+        # doesn't (so existing clients keep working unchanged).
+        if zoom is not None:
+            clustered = cluster_points(points, zoom)
+            return jsonify(points=clustered, source=tiles.source_name,
+                           clustered=True, zoom=zoom, total=len(points))
+        return jsonify(points=points, source=tiles.source_name, clustered=False,
+                       total=len(points))
 
     @app.get("/map")
     @require("viewer", api=False)
@@ -604,9 +875,20 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
                 "SELECT * FROM incidents WHERE status = 'open' ORDER BY severity DESC, id DESC LIMIT 10"
             )
         ]
+        # The most recently touched active case sets the console's mode
+        # banner, so the operator can see at a glance whether they are in an
+        # IR, a pentest, or a diagnostics posture.
+        active = db.query_one(
+            "SELECT id FROM cases WHERE status IN ('open','active') "
+            "ORDER BY id DESC LIMIT 1")
+        mode = get_mode(db, active["id"]) if active else None
         return render_template(
             "dashboard.html", user=g.user, stats=stats(db), recent=recent,
             incidents=incidents, verify=verify_chain(db),
+            mode=mode, mode_label=MODE_LABELS.get(mode) if mode else None,
+            mode_case=active["id"] if active else None,
+            highlights=MODE_HIGHLIGHTS.get(mode, ()) if mode else (),
+            coverage=attack.global_coverage(db),
         )
 
     @app.get("/incidents")
@@ -622,9 +904,13 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
         if row is None:
             return render_template("error.html", user=g.user, message="Incident not found"), 404
         cases_open = list_cases(db)
+        coverage = attack.incident_coverage(db, incident_id)
         return render_template(
             "incident.html", user=g.user, incident=dict(row),
             timeline=incident_timeline(db, incident_id), cases=cases_open,
+            coverage=coverage,
+            tactics=[t["label"] for t in coverage["tactics"] if t["events"]],
+            triage=None,
         )
 
     @app.get("/cases")
@@ -639,7 +925,10 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
         if case is None:
             return render_template("error.html", user=g.user, message="Case not found"), 404
         return render_template(
-            "case.html", user=g.user, case=case, timeline=case_timeline(db, case_id)
+            "case.html", user=g.user, case=case,
+            timeline=case_timeline(db, case_id),
+            coverage=attack.case_coverage(db, case_id),
+            modes=MODES, mode_labels=MODE_LABELS,
         )
 
     @app.get("/search")
@@ -695,6 +984,68 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
         remove_ioc(db, ioc_id, g.user["username"])
         return redirect(url_for("iocs_page"))
 
+    @app.get("/attack")
+    @require("viewer", api=False)
+    def attack_page():
+        case_id = request.args.get("case_id", type=int)
+        coverage = (attack.case_coverage(db, case_id) if case_id
+                    else attack.global_coverage(db))
+        return render_template("attack.html", user=g.user, coverage=coverage,
+                               cases=list_cases(db), case_id=case_id,
+                               bundle_loaded=attack._BUNDLE_LOADED)
+
+    @app.get("/cases/<int:case_id>/preview")
+    @require("viewer", api=False)
+    def case_preview(case_id: int):
+        """Live preview of the engagement report before it is exported.
+
+        Rendered as a page rather than an embedded frame: the Hive sets
+        `frame-ancestors 'none'`, and weakening that for a convenience
+        feature would be the wrong trade.
+        """
+        data = report_data(db, cfg, case_id)
+        if data is None:
+            return render_template("error.html", user=g.user,
+                                   message="Case not found"), 404
+        return render_template("preview.html", user=g.user, d=data,
+                               mode_labels=MODE_LABELS)
+
+    @app.post("/cases/<int:case_id>/mode-form")
+    @require("investigator", api=False)
+    def case_mode_form(case_id: int):
+        mode = request.form.get("mode", "")
+        if mode in MODES:
+            set_mode(db, case_id, mode, g.user["username"])
+        return redirect(url_for("case_page", case_id=case_id))
+
+    @app.post("/incidents/<int:incident_id>/triage-form")
+    @require("investigator", api=False)
+    def incident_triage_form(incident_id: int):
+        row = db.query_one("SELECT * FROM incidents WHERE id = ?", (incident_id,))
+        if row is None:
+            return render_template("error.html", user=g.user,
+                                   message="Incident not found"), 404
+        coverage = attack.incident_coverage(db, incident_id)
+        tactics = [t["label"] for t in coverage["tactics"] if t["events"]]
+        timeline = incident_timeline(db, incident_id)
+        prompt = (
+            "You are triaging a security incident. Give: (1) a one-line "
+            "severity call — informational, low, medium, or high — with your "
+            "reason; (2) the three most useful next investigative steps, as a "
+            "short numbered list; (3) one containment action if the incident "
+            "is medium or high. Be concise and specific to the evidence.\n\n"
+            f"Incident: {row['title']}\nCurrent severity: {row['severity']}\n"
+            f"ATT&CK tactics observed: {', '.join(tactics) or 'none attributed'}\n"
+            "Timeline:\n" +
+            "\n".join(f"  {t['at']} [{t['device']}] {t['narrative']}"
+                      for t in timeline[:40]))
+        result = ai_ask(db, ai_engine, prompt, None)
+        audit(db, g.user["username"], "incident_triage", f"incident {incident_id}")
+        return render_template(
+            "incident.html", user=g.user, incident=dict(row), timeline=timeline,
+            cases=list_cases(db), triage=result, tactics=tactics,
+            coverage=coverage)
+
     @app.get("/audit")
     @require("administrator", api=False)
     def audit_page():
@@ -709,7 +1060,53 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
         users = [dict(r) for r in db.query(
             "SELECT username, role, created_at, disabled FROM users ORDER BY username")]
         return render_template("admin.html", user=g.user, users=users, roles=ROLES,
-                               posture=security_report(cfg, db))
+                               posture=security_report(cfg, db),
+                               scope=scope_mod.scope_summary(db),
+                               scope_mode=scope_mode,
+                               intel=intel_store.stats(),
+                               cases=list_cases(db))
+
+    @app.post("/admin/scope/new")
+    @require("administrator", api=False)
+    def admin_scope_new():
+        try:
+            scope_mod.add_rule(
+                db, request.form.get("kind", ""),
+                request.form.get("value", ""), g.user["username"],
+                auth_ref=(request.form.get("auth_ref") or "").strip(),
+                starts_at=(request.form.get("starts_at") or "").strip() or None,
+                ends_at=(request.form.get("ends_at") or "").strip() or None,
+                case_id=request.form.get("case_id", type=int),
+                note=(request.form.get("note") or "").strip())
+            flash = "scope rule added"
+        except ValueError as exc:
+            flash = f"error: {exc}"
+        except Exception:
+            flash = "error: that scope rule already exists"
+        return redirect(url_for("admin_page", flash=flash) + "#scope")
+
+    @app.post("/admin/scope/<int:rule_id>/delete")
+    @require("administrator", api=False)
+    def admin_scope_delete(rule_id: int):
+        scope_mod.remove_rule(db, rule_id, g.user["username"])
+        return redirect(url_for("admin_page", flash="scope rule removed") + "#scope")
+
+    @app.post("/admin/scope/<int:rule_id>/toggle")
+    @require("administrator", api=False)
+    def admin_scope_toggle(rule_id: int):
+        scope_mod.set_active(db, rule_id, request.form.get("action") == "enable",
+                             g.user["username"])
+        return redirect(url_for("admin_page", flash="scope rule updated") + "#scope")
+
+    @app.post("/admin/attack/backfill")
+    @require("administrator", api=False)
+    def admin_attack_backfill():
+        learned = attack.load_bundle()
+        tagged = attack.backfill(db)
+        audit(db, g.user["username"], "attack_backfill",
+              f"{tagged} events, {learned} techniques from bundle")
+        return redirect(url_for("admin_page",
+                                flash=f"ATT&CK backfill: {tagged} event(s) tagged"))
 
     @app.post("/admin/users/new")
     @require("administrator", api=False)

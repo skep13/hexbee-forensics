@@ -1,12 +1,17 @@
 {% extends "base.html" %}
+{% from "macros.html" import heatmap, modebar %}
 {% block title %}Dashboard — HexBee Hive{% endblock %}
 {% block content %}
-<script nonce="{{ csp_nonce }}">setTimeout(function(){location.reload()},30000);</script>
+
+{% if mode %}
+{{ modebar(mode, mode_label, mode_case,
+           'Event types for this posture are highlighted below.') }}
+{% endif %}
 
 <div class="page-head">
   <div>
     <h1>Operations Dashboard</h1>
-    <p class="sub">Live evidence intake, correlation and integrity · auto-refreshes every 30s</p>
+    <p class="sub">Live evidence intake, correlation and integrity</p>
   </div>
   <div class="actions">
     <a class="btn" href="/collect"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M5 12a7 7 0 0 1 14 0"/></svg>Collect</a>
@@ -40,6 +45,14 @@
 </div>
 {% endif %}
 
+<h2><span class="livedot" id="livedot"></span>Live Feed</h2>
+<div class="feed" id="feed">
+  <div class="empty" id="feed-empty">Waiting for evidence… new records appear here the moment they are chained.</div>
+</div>
+
+<h2>ATT&amp;CK Coverage</h2>
+{{ heatmap(coverage) }}
+
 <h2>Open Incidents</h2>
 {% if incidents %}
 <div class="tablewrap"><table>
@@ -60,7 +73,7 @@
 <div class="tablewrap"><table>
 <tr><th>Time (UTC)</th><th>Device</th><th>Type</th><th>Sev</th><th>Payload</th><th>Incident</th></tr>
 {% for e in recent %}
-<tr>
+<tr class="{{ 'hl' if e.event_type in highlights else '' }}">
   <td><span class="mono muted">{{ e.occurred_at }}</span></td>
   <td><span class="mono">{{ e.device }}</span></td>
   <td><span class="mono">{{ e.event_type }}</span></td>
@@ -70,4 +83,43 @@
 </tr>
 {% endfor %}
 </table></div>
+
+<script nonce="{{ csp_nonce }}">
+(function(){
+  // Live feed over Server-Sent Events. SSE rather than WebSockets: one plain
+  // HTTP response, no library, and the browser reconnects by itself when the
+  // Pi's Wi-Fi drops. The server closes the stream every 5 minutes and the
+  // browser silently reopens it, so no thread is held forever.
+  if(!window.EventSource) return;
+  var feed=document.getElementById('feed'),
+      empty=document.getElementById('feed-empty'),
+      dot=document.getElementById('livedot'),
+      MAX=60, source=new EventSource('/api/v1/stream');
+
+  source.addEventListener('hello',function(){dot.classList.add('on');});
+  source.onerror=function(){dot.classList.remove('on');};
+  source.onmessage=function(msg){
+    var e;
+    try{e=JSON.parse(msg.data);}catch(err){return;}
+    if(empty&&empty.parentNode){empty.parentNode.removeChild(empty);empty=null;}
+    var row=document.createElement('div');
+    row.className='row s'+e.severity;
+    var t=document.createElement('span'); t.className='t'; t.textContent=e.at;
+    var d=document.createElement('span'); d.className='d'; d.textContent=e.device;
+    var y=document.createElement('span'); y.className='t'; y.textContent=e.event_type;
+    var s=document.createElement('span'); s.className='s'; s.textContent=e.summary;
+    // textContent everywhere: evidence payloads are attacker-influenced data
+    // and must never be parsed as markup.
+    row.appendChild(t); row.appendChild(d); row.appendChild(y); row.appendChild(s);
+    if(e.incident_id){
+      var a=document.createElement('a');
+      a.href='/incidents/'+e.incident_id; a.textContent='#'+e.incident_id;
+      row.appendChild(a);
+    }
+    feed.insertBefore(row,feed.firstChild);
+    while(feed.childNodes.length>MAX){feed.removeChild(feed.lastChild);}
+  };
+  window.addEventListener('beforeunload',function(){source.close();});
+})();
+</script>
 {% endblock %}

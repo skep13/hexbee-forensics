@@ -31,10 +31,20 @@ def cmd_scan(args) -> int:
         return 1
 
     print(f"Scanning {target} …")
-    result = scan(target, max_files=args.max_files)
+    result = scan(target, max_files=args.max_files,
+                  yara_rules=args.yara_rules, use_yara=not args.no_yara)
     print(f"  {len(result.files)} files, {len(result.executables)} executables, "
           f"{len(result.mismatches)} mismatches, {len(result.gps_points)} GPS images, "
           f"{len(result.visits)} browser visits")
+    if result.yara_status.get("available"):
+        print(f"  YARA: {len(result.yara)} match(es) from "
+              f"{result.yara_status['rule_files']} rule file(s)")
+        for m in result.yara[:20]:
+            print(f"    [{m.rule}] {m.path}")
+        if len(result.yara) > 20:
+            print(f"    … and {len(result.yara) - 20} more")
+    else:
+        print(f"  YARA: skipped — {result.yara_status.get('reason', 'unavailable')}")
 
     if args.output:
         Path(args.output).write_text(render_report(result), encoding="utf-8")
@@ -53,6 +63,21 @@ def cmd_scan(args) -> int:
         if summary.get("errors"):
             print(f"  rejected: {summary['errors']}", file=sys.stderr)
     return 0
+
+
+def cmd_yara(args) -> int:
+    from .yara_scan import DEFAULT_RULE_PATHS, status
+
+    info = status(args.yara_rules)
+    print(f"YARA: {'available' if info['available'] else 'unavailable'} — {info['reason']}")
+    if info["rules_dir"]:
+        print(f"Rules: {info['rule_files']} file(s) in {info['rules_dir']}")
+    else:
+        print("Searched: " + ", ".join(str(p) for p in DEFAULT_RULE_PATHS))
+        print("\nTo add a ruleset offline, copy a bundle onto the external HDD:")
+        print("  mkdir -p /mnt/evidence/yara && cp -r <bundle>/*.yar /mnt/evidence/yara/")
+        print("  export HEXBEE_YARA_RULES=/mnt/evidence/yara")
+    return 0 if info["available"] else 1
 
 
 def cmd_carve(args) -> int:
@@ -120,7 +145,15 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--hive", help="Hive base URL to upload findings to")
     s.add_argument("--key", help="Hive ingest key")
     s.add_argument("--device", default="Comb01", help="device name for uploaded events")
+    s.add_argument("--yara-rules", help="YARA rules file or directory "
+                                        "(else HEXBEE_YARA_RULES, else the "
+                                        "standard kit locations)")
+    s.add_argument("--no-yara", action="store_true", help="skip YARA matching")
     s.set_defaults(fn=cmd_scan)
+
+    y = sub.add_parser("yara", help="show YARA capability and ruleset location")
+    y.add_argument("--yara-rules")
+    y.set_defaults(fn=cmd_yara)
 
     c = sub.add_parser("carve", help="carve files out of a raw image")
     c.add_argument("image")

@@ -1,0 +1,41 @@
+{# Shared UI fragments. Imported with:  {% from "macros.html" import heatmap %} #}
+
+{# ATT&CK coverage heatmap.
+   Plain CSS grid, no JavaScript, no external library — it renders on an
+   air-gapped Pi and prints cleanly into a report. Intensity is bucketed
+   rather than scaled continuously so the same colour always means the same
+   thing across cases. #}
+{% macro heatmap(coverage, link_case=None, show_empty=True) %}
+<div class="heat">
+  {% for t in coverage.tactics %}
+    {% if t.events or show_empty %}
+    {% set level = 0 if not t.events else (4 if t.events >= 25 else (3 if t.events >= 10 else (2 if t.events >= 4 else 1))) %}
+    <div class="cell l{{ level }}" title="{{ t.label }} — {{ t.events }} evidence record(s), {{ t.techniques | length }} technique(s)">
+      <div class="t">{{ t.label }}</div>
+      <div class="n">{{ t.events }}</div>
+      <div class="tech">{{ t.techniques | length }} technique{{ '' if t.techniques | length == 1 else 's' }}</div>
+      {% for tech in t.techniques[:3] %}
+        <span class="tchip" title="{{ tech.name }}">{{ tech.id }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endfor %}
+</div>
+<p class="muted">{{ coverage.distinct_techniques }} distinct technique(s) across
+  {{ coverage.total_attributions }} attribution(s).
+  {% if link_case %}<a href="/attack?case_id={{ link_case }}">Full breakdown</a>{% else %}<a href="/attack">Full breakdown</a>{% endif %}
+</p>
+{% endmacro %}
+
+{# Operating-mode banner. `mode` is ir | pentest | diagnostics. #}
+{% macro modebar(mode, label, case_id=None, hint='') %}
+<div class="modebar mode-{{ mode }}">
+  <span class="k">Mode</span>
+  <span class="v">{{ label }}</span>
+  {% if hint %}<span class="hint">{{ hint }}</span>{% endif %}
+  <span class="right">
+    {% if case_id %}<a class="btn btn-sm btn-ghost" href="/cases/{{ case_id }}">Case #{{ case_id }}</a>{% endif %}
+    {% if mode == 'pentest' %}<a class="btn btn-sm btn-ghost" href="/admin#scope">Scope</a>{% endif %}
+  </span>
+</div>
+{% endmacro %}

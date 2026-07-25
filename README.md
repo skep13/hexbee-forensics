@@ -57,14 +57,18 @@ Target Computer ──USB──> Scout (ESP32-S3 agent)
 
 | Path | What it is |
 |------|------------|
-| [hive/](hive/) | Hive server: MQTT+REST ingest, hash-chained SQLite evidence log, correlation, timeline, cases, IOC engine, offline map, reference library, Hive Mind AI, iPhone field PWA, QR labels, Flask dashboard + REST API |
-| [comb/](comb/) | **Comb** forensic triage toolkit (`hexbee-comb`) — inventory, carving, partitions, EXIF/GPS, browser history, Sleuth Kit, uploads findings to the Hive |
-| [forager/](forager/) | **Forager** autonomous live-response collector (`hexbee-forager`) — read-only agent that gathers processes, network, logons, autoruns, USB & recent files from a live host and streams them into the evidence chain; runs unattended with a continuous `watch` mode |
-| [queen/](queen/) | Queen analyst CLI (`hexbee-queen`) — cases, incidents, search, IOCs, AI, reports over the Hive REST API, stdlib-only |
-| [scout/firmware/](scout/firmware/) | ESP32-S3 ESP-IDF firmware: Wi-Fi, MQTT QoS 1, offline event buffering, heartbeat, USB watch (simulation mode until hardware validation) |
+| [hive/](hive/) | Hive server: MQTT+REST ingest, hash-chained SQLite evidence log, correlation, timeline, cases, IOC engine, **engagement scope enforcer**, **offline MITRE ATT&CK tagger**, **syslog/SIEM anomaly rules**, **offline threat-intel store**, offline map, reference library, Hive Mind AI, iPhone field PWA, QR labels, Flask dashboard + REST API |
+| [comb/](comb/) | **Comb** forensic triage toolkit (`hexbee-comb`) — inventory, carving, partitions, EXIF/GPS, browser history, **YARA malware detection**, Sleuth Kit, uploads findings to the Hive |
+| [forager/](forager/) | **Forager** autonomous live-response collector (`hexbee-forager`) — read-only agent that gathers processes, network, logons, autoruns, USB & recent files from a live host and streams them into the evidence chain; runs unattended with a continuous `watch` mode, plus a **diagnostics mode** (SMART, thermals, RAM/swap, failed units) and **chunk-streamed memory acquisition** |
+| [netmon/](netmon/) | **Netmon** passive network monitoring for the Hive host (`hexbee-netmon`) — stdlib packet decoder, 6 IDS rules, passive host/service inventory, active diagnostics, rotating PCAP to the HDD |
+| [queen/](queen/) | Queen analyst CLI (`hexbee-queen`) — cases, incidents, search, IOCs, AI, reports over the Hive REST API, plus scope-gated engagement tooling: **nmap recon**, **Responder bridge**, **BloodHound ingest**, **drop-box pivot**, **auto pentest report** (HTML/PDF) |
+| [scout/firmware/](scout/firmware/) | ESP32-S3 ESP-IDF firmware: Wi-Fi, MQTT QoS 1, offline event buffering, heartbeat, **USB MSC host acquisition** (prefix hashing, bounded walk) with a simulation fallback |
+| [scout/c3-scanner/](scout/c3-scanner/) | ESP32-C3 MicroPython **passive wireless scanner** — Wi-Fi beacons and BLE advertisements into the evidence chain and onto the offline map |
 | [scout/simulator/](scout/simulator/) | Python Scout simulator — drives the whole platform with realistic scenarios, no hardware needed |
+| [pico/](pico/) | Two Raspberry Pi Picos: **Stinger** (CircuitPython HID payload deployer, arm-jumper gated) and **Sentinel** (hardware evidence-seal token with HMAC-signed, replay-resistant seals) |
 | [docs/](docs/) | [Overview](docs/OVERVIEW.md), architecture, deployment, Comb, forensics, and API reference |
-| [tests/](tests/) | pytest suite (48 tests) across Hive core, IOC, Comb, and field features |
+| [RECOMMENDATIONS.md](RECOMMENDATIONS.md) | What each added feature does, how it fits the hardware, and its limitations |
+| [tests/](tests/) | pytest suite (233 tests) across Hive core, IOC, scope, ATT&CK, syslog/intel, Comb, Netmon, Forager, Queen tooling, and the web UI |
 
 ## Quick start (development, any OS)
 
@@ -170,13 +174,23 @@ See **[SECURITY.md](SECURITY.md)** for the full OWASP mapping and
 ## Status
 
 Working today: full Hive platform (ingest → normalize → chain → correlate →
-timeline → case → report), IOC engine, Comb forensic toolkit with Hive upload,
-offline evidence map, offline reference/Wikipedia library, Hive Mind local AI
-(with rule-based fallback), iPhone field PWA with camera-to-chain uploads and
-QR labels, Queen CLI, and the Scout simulator. **48 passing tests.**
+timeline → case → report), IOC engine, engagement scope enforcement, offline
+MITRE ATT&CK attribution, syslog/SIEM anomaly rules, offline threat-intel
+matching, Comb forensic toolkit with YARA, Forager live-response and
+diagnostics collection, Netmon passive network monitoring, the Queen's
+scope-gated engagement tooling and auto pentest report, offline evidence map
+with clustering, offline reference/Wikipedia library, Hive Mind local AI (with
+rule-based fallback), iPhone field PWA, and the Scout simulator.
+**233 passing tests.**
 
-Hardware/optional-dependency gated: the Scout's TinyUSB acquisition path, MSC
-triage, device identity/event signing, and MQTT TLS (firmware skeleton runs in
-simulation mode); offline Wikipedia needs `libzim`; conversational AI needs a
-local Ollama model (the rule-based summariser works without one); MBTiles/ZIM
-content is user-supplied.
+Written but not yet validated on hardware: the Scout's USB MSC host
+acquisition, the ESP32-C3 scanner, and both Pico firmwares. See
+[RECOMMENDATIONS.md → Limitations](RECOMMENDATIONS.md#limitations) for the
+full picture, including the capability limits that are deliberate.
+
+Optional-dependency gated: YARA needs `yara-python` and a ruleset; 802.11
+monitor mode needs `scapy` and a capable adapter; offline Wikipedia needs
+`libzim`; conversational AI and report narration need a local Ollama model
+(deterministic fallbacks work without one); PDF export needs `wkhtmltopdf`;
+threat-intel feeds and MBTiles/ZIM content are user-supplied and synced before
+deployment.

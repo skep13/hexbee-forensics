@@ -1,0 +1,6 @@
+REM NAME lock-workstation
+REM Locks the workstation. Useful as a safe end-of-test action, and as the
+REM demonstration payload for physical-security awareness training: the
+REM point lands harder when the machine locks itself.
+DELAY 800
+GUI l

@@ -36,6 +36,7 @@ def get_case(db: Database, case_id: int) -> dict | None:
     if row is None:
         return None
     case = dict(row)
+    case["mode"] = get_mode(db, case_id)
     case["incidents"] = [
         dict(r) for r in db.query("SELECT * FROM incidents WHERE case_id = ? ORDER BY id", (case_id,))
     ]
@@ -95,6 +96,51 @@ def set_incident_status(db: Database, incident_id: int, status: str, actor: str)
     if cur.rowcount:
         audit(db, actor, "incident_status", f"incident {incident_id} -> {status}")
     return bool(cur.rowcount)
+
+
+# -- operating mode ------------------------------------------------------
+
+# A case is worked in one of three modes. The mode changes nothing about how
+# evidence is stored — it drives the dashboard banner, which event types the
+# UI highlights, and which report template the Queen reaches for.
+MODES = ("ir", "pentest", "diagnostics")
+
+MODE_LABELS = {
+    "ir": "Incident Response",
+    "pentest": "Pentest Engagement",
+    "diagnostics": "IT Diagnostics",
+}
+
+# Event types each mode puts front and centre.
+MODE_HIGHLIGHTS = {
+    "ir": ("autorun_found", "executable_found", "yara_match", "persistence_item",
+           "network_beacon", "log_anomaly", "memory_acquired"),
+    "pentest": ("recon_finding", "credential_capture", "ad_recon_finding",
+                "hid_deployment", "scope_violation", "wireless_sighting"),
+    "diagnostics": ("diagnostic_snapshot", "diagnostic_alert", "host_info",
+                    "network_alert"),
+}
+
+
+def get_mode(db: Database, case_id: int) -> str:
+    row = db.query_one("SELECT mode FROM case_modes WHERE case_id = ?", (case_id,))
+    return row["mode"] if row else "ir"
+
+
+def set_mode(db: Database, case_id: int, mode: str, actor: str) -> bool:
+    if mode not in MODES:
+        raise ValueError(f"mode must be one of {MODES}")
+    if db.query_one("SELECT id FROM cases WHERE id = ?", (case_id,)) is None:
+        return False
+    db.execute(
+        """INSERT INTO case_modes (case_id, mode, set_by, set_at) VALUES (?, ?, ?, ?)
+           ON CONFLICT(case_id) DO UPDATE SET mode = excluded.mode,
+                                              set_by = excluded.set_by,
+                                              set_at = excluded.set_at""",
+        (case_id, mode, actor, _now()),
+    )
+    audit(db, actor, "case_mode", f"case {case_id} -> {mode}")
+    return True
 
 
 # -- tags ----------------------------------------------------------------

@@ -204,6 +204,63 @@ form.inline{display:inline-flex;gap:.4rem;align-items:center}
 .cmd code{background:none;border:none;color:var(--honey-2);white-space:nowrap}
 .cmd .copy{margin-left:auto;flex:0 0 auto}
 
+/* ---------- Mode banner ---------- */
+/* Says out loud which posture the console is in. Pentest and diagnostics
+   deliberately do not look like IR — misreading the mode is how an operator
+   runs the wrong playbook. */
+.modebar{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;
+  border:1px solid var(--line-2);border-left:4px solid var(--honey);
+  border-radius:var(--r);padding:.6rem 1rem;margin:0 0 1rem;background:var(--bg-2)}
+.modebar .k{font-family:var(--mono);font-size:.64rem;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--faint)}
+.modebar .v{font-weight:700;letter-spacing:.02em}
+.modebar .hint{color:var(--muted);font-size:.82rem}
+.modebar .right{margin-left:auto;display:flex;gap:.4rem;flex-wrap:wrap}
+.modebar.mode-ir{border-left-color:var(--notice)}
+.modebar.mode-ir .v{color:var(--notice)}
+.modebar.mode-pentest{border-left-color:var(--crit);
+  background:linear-gradient(90deg,rgba(229,72,77,.09),var(--bg-2) 60%)}
+.modebar.mode-pentest .v{color:var(--crit)}
+.modebar.mode-diagnostics{border-left-color:var(--ok)}
+.modebar.mode-diagnostics .v{color:var(--ok)}
+tr.hl td{background:rgba(249,185,18,.07)}
+tr.hl td:first-child{box-shadow:inset 3px 0 0 var(--honey)}
+
+/* ---------- ATT&CK heatmap ---------- */
+.heat{display:grid;grid-template-columns:repeat(auto-fit,minmax(8.2rem,1fr));
+  gap:.45rem;margin:.9rem 0}
+.heat .cell{border:1px solid var(--line);border-radius:8px;padding:.55rem .65rem;
+  background:var(--bg-2);min-height:5.2rem;display:flex;flex-direction:column;gap:.2rem}
+.heat .cell .t{font-size:.6rem;text-transform:uppercase;letter-spacing:.09em;
+  color:var(--faint);font-family:var(--mono);line-height:1.25}
+.heat .cell .n{font-size:1.3rem;font-weight:750;font-family:var(--mono);color:var(--faint)}
+.heat .cell .tech{font-size:.66rem;color:var(--muted);font-family:var(--mono)}
+.heat .cell.l1{background:rgba(249,185,18,.10);border-color:rgba(249,185,18,.3)}
+.heat .cell.l2{background:rgba(249,185,18,.18);border-color:rgba(249,185,18,.45)}
+.heat .cell.l3{background:rgba(249,185,18,.28);border-color:var(--honey-dim)}
+.heat .cell.l4{background:rgba(229,72,77,.24);border-color:rgba(229,72,77,.55)}
+.heat .cell.l1 .n,.heat .cell.l2 .n,.heat .cell.l3 .n{color:var(--honey-2)}
+.heat .cell.l4 .n{color:var(--crit)}
+.tchip{display:inline-block;font-family:var(--mono);font-size:.66rem;
+  border:1px solid var(--line-2);border-radius:5px;padding:.02rem .3rem;
+  margin:.1rem .15rem 0 0;color:var(--muted)}
+
+/* ---------- Live feed ---------- */
+.feed{border:1px solid var(--line);border-radius:var(--r);background:var(--bg-2);
+  max-height:20rem;overflow-y:auto;font-family:var(--mono);font-size:.78rem}
+.feed .row{display:flex;gap:.7rem;padding:.35rem .8rem;border-bottom:1px solid var(--line);
+  animation:flashin .9s ease-out}
+.feed .row:last-child{border-bottom:none}
+.feed .row .t{color:var(--faint);white-space:nowrap}
+.feed .row .d{color:var(--honey-dim);white-space:nowrap}
+.feed .row .s{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.feed .row.s2 .s{color:var(--warning)} .feed .row.s3 .s{color:var(--crit)}
+.feed .empty{padding:.8rem;color:var(--faint)}
+@keyframes flashin{from{background:rgba(249,185,18,.16)}to{background:transparent}}
+.livedot{width:7px;height:7px;border-radius:50%;background:var(--faint);
+  display:inline-block;margin-right:.35rem}
+.livedot.on{background:var(--ok);box-shadow:0 0 7px var(--ok);animation:pulse 2.2s infinite}
+
 /* Back-compat: pages still using .cards/.card .num/.lbl (field, etc.) */
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.9rem;margin:1rem 0}
 .card .num{font-size:1.6rem;font-weight:750;font-family:var(--mono);color:var(--honey);line-height:1.1}
@@ -249,6 +306,7 @@ form.inline{display:inline-flex;gap:.4rem;align-items:center}
       <div class="lbl">Evidence</div>
       {% call nav('/devices', 'Devices') %}<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1"/><line x1="8" y1="20" x2="16" y2="20"/></svg>{% endcall %}
       {% call nav('/iocs', 'IOCs') %}<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="16" r=".6"/></svg>{% endcall %}
+      {% call nav('/attack', 'ATT&CK') %}<svg viewBox="0 0 24 24"><rect x="3" y="4" width="4" height="7"/><rect x="10" y="4" width="4" height="12"/><rect x="17" y="4" width="4" height="9"/></svg>{% endcall %}
       {% call nav('/map', 'Evidence Map') %}<svg viewBox="0 0 24 24"><path d="M9 3L3 5v16l6-2 6 2 6-2V3l-6 2z"/><line x1="9" y1="3" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="21"/></svg>{% endcall %}
       {% call nav('/reference', 'Reference') %}<svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/></svg>{% endcall %}
     </nav>

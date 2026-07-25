@@ -55,13 +55,34 @@
     for (const p of points) {
       const px = lon2x(p.lon, z) * TILE - cx + w / 2;
       const py = lat2y(p.lat, z) * TILE - cy + h / 2;
-      if (px < -20 || py < -20 || px > w + 20 || py > h + 20) continue;
+      if (px < -30 || py < -30 || px > w + 30 || py > h + 30) continue;
       const m = document.createElement("div");
-      m.title = p.label;
-      m.style.cssText = `position:absolute; left:${px - 6}px; top:${py - 6}px;` +
-        "width:12px; height:12px; border-radius:50%; background:#f9b912;" +
-        "border:2px solid #000; box-shadow:0 0 5px #000; cursor:pointer;";
-      if (p.incident_id) m.onclick = () => location.href = "/incidents/" + p.incident_id;
+      if (p.cluster) {
+        // A cluster marker grows with its member count and shows the count,
+        // so a walk-around that produced 300 wireless sightings reads as a
+        // handful of legible groups instead of one solid blob of pins.
+        const size = Math.min(46, 20 + String(p.count).length * 8);
+        m.textContent = p.count;
+        m.title = (p.sample || []).join("\n") +
+                  (p.count > (p.sample || []).length ? "\n…" : "");
+        m.style.cssText = `position:absolute; left:${px - size / 2}px;` +
+          `top:${py - size / 2}px; width:${size}px; height:${size}px;` +
+          "border-radius:50%; background:rgba(249,185,18,.85); color:#1a1509;" +
+          "border:2px solid #000; box-shadow:0 0 8px #000; cursor:pointer;" +
+          "display:grid; place-items:center; font:700 .72rem/1 ui-monospace,monospace;";
+        // Clicking a cluster zooms into it rather than opening one member.
+        m.onclick = () => {
+          centerLat = p.lat; centerLon = p.lon;
+          z = Math.min(18, z + 3);
+          loadPoints();
+        };
+      } else {
+        m.title = p.label;
+        m.style.cssText = `position:absolute; left:${px - 6}px; top:${py - 6}px;` +
+          "width:12px; height:12px; border-radius:50%; background:#f9b912;" +
+          "border:2px solid #000; box-shadow:0 0 5px #000; cursor:pointer;";
+        if (p.incident_id) m.onclick = () => location.href = "/incidents/" + p.incident_id;
+      }
       el.appendChild(m);
     }
     const zc = document.createElement("div");
@@ -71,7 +92,7 @@
       const b = document.createElement("button");
       b.textContent = txt;
       b.style.cssText = "width:2rem; height:2rem; font-size:1.1rem;";
-      b.onclick = () => { z = Math.max(0, Math.min(15, z + dz)); render(); };
+      b.onclick = () => { z = Math.max(0, Math.min(18, z + dz)); loadPoints(); };
       zc.appendChild(b);
     }
     el.appendChild(zc);
@@ -94,26 +115,61 @@
   el.addEventListener("pointerup", () => { drag = null; el.style.cursor = "grab"; });
   el.addEventListener("wheel", e => {
     e.preventDefault();
-    z = Math.max(0, Math.min(15, z + (e.deltaY < 0 ? 1 : -1)));
-    render();
+    z = Math.max(0, Math.min(18, z + (e.deltaY < 0 ? 1 : -1)));
+    loadPoints();
   }, { passive: false });
 
-  fetch("/api/v1/map/points").then(r => r.json()).then(data => {
-    points = data.points;
-    status.textContent = points.length + " evidence point(s) with coordinates.";
-    if (points.length) {
-      centerLat = points[0].lat; centerLon = points[0].lon; z = 12;
-      const list = document.getElementById("points-list");
-      let html = "<table><tr><th>Label</th><th>Coordinates</th><th>Incident</th></tr>";
-      for (const p of points) {
-        html += `<tr><td>${p.label.replace(/</g, "&lt;")}</td>` +
-          `<td>${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</td>` +
-          `<td>${p.incident_id ? `<a href="/incidents/${p.incident_id}">#${p.incident_id}</a>` : ""}</td></tr>`;
-      }
-      list.innerHTML = html + "</table>";
-    }
+  /* Clustering is computed server-side for the current zoom: the Pi does the
+     arithmetic once per zoom change instead of the browser redoing it on
+     every pan. Requests are debounced so a wheel-spin is one call, not ten. */
+  let pending = null, firstLoad = true;
+  function loadPoints() {
     render();
-  });
+    clearTimeout(pending);
+    pending = setTimeout(() => {
+      fetch("/api/v1/map/points?zoom=" + z).then(r => r.json()).then(data => {
+        points = data.points;
+        const groups = points.filter(p => p.cluster).length;
+        status.textContent = data.total + " evidence point(s) with coordinates" +
+          (groups ? ` — ${groups} cluster(s) at this zoom; zoom in to split them.`
+                  : ".");
+        if (firstLoad && points.length) {
+          firstLoad = false;
+          centerLat = points[0].lat; centerLon = points[0].lon; z = 12;
+          buildList(data.total);
+          return loadPoints();
+        }
+        render();
+      });
+    }, 180);
+  }
+
+  function buildList(total) {
+    fetch("/api/v1/map/points").then(r => r.json()).then(data => {
+      const list = document.getElementById("points-list");
+      const table = document.createElement("table");
+      const head = table.insertRow();
+      for (const h of ["Label", "Coordinates", "Incident"]) {
+        const th = document.createElement("th"); th.textContent = h; head.appendChild(th);
+      }
+      for (const p of data.points) {
+        const row = table.insertRow();
+        // textContent, not innerHTML: labels come from evidence payloads.
+        row.insertCell().textContent = p.label;
+        row.insertCell().textContent = p.lat.toFixed(5) + ", " + p.lon.toFixed(5);
+        const cell = row.insertCell();
+        if (p.incident_id) {
+          const a = document.createElement("a");
+          a.href = "/incidents/" + p.incident_id;
+          a.textContent = "#" + p.incident_id;
+          cell.appendChild(a);
+        }
+      }
+      list.replaceChildren(table);
+    });
+  }
+
+  loadPoints();
   window.addEventListener("resize", render);
 })();
 </script>

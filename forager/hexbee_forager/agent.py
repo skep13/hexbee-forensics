@@ -32,6 +32,10 @@ CONFIG_PATHS = [
     Path("/etc/hexbee/forager.json"),
 ]
 
+# forensic  = live-response artifacts (the original behaviour)
+# diagnostics = machine health: SMART, thermals, RAM/swap, failed units, disks
+MODES = ("forensic", "diagnostics")
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -74,13 +78,29 @@ def discover_config(hive_url: str | None = None, ingest_key: str | None = None) 
 
 class Forager:
     def __init__(self, hive_url: str | None, ingest_key: str | None,
-                 spool_dir: Path | None = None, device: str | None = None):
+                 spool_dir: Path | None = None, device: str | None = None,
+                 mode: str = "forensic"):
         import socket
         self.hive_url = (hive_url or "").rstrip("/")
         self.ingest_key = ingest_key or ""
         self.device = device or f"Forager-{socket.gethostname()}"
+        self.mode = mode if mode in MODES else "forensic"
         self.spool_dir = spool_dir or (Path.home() / ".hexbee-forager" / "spool")
         self.spool_dir.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def collectors(self) -> list[tuple]:
+        """The collector registry for this agent's mode.
+
+        Diagnostics mode swaps the collector list and nothing else — every
+        other moving part (discovery, batching, spooling, change detection)
+        is shared, which is why the mode costs no extra memory and no extra
+        agent to deploy.
+        """
+        if self.mode == "diagnostics":
+            from .diagnostics import DIAGNOSTIC_COLLECTORS
+            return DIAGNOSTIC_COLLECTORS
+        return ALL_COLLECTORS
 
     # -- collection -------------------------------------------------------
 
@@ -92,10 +112,11 @@ class Forager:
             "event_type": "collection_started",
             "occurred_at": _now(),
             "payload": {"run_id": run_id, "forager": __version__,
+                        "collection_mode": self.mode,
                         "mode": "volatile" if volatile_only else "full"},
         })]
         counts: dict[str, int] = {}
-        for name, fn, volatile in ALL_COLLECTORS:
+        for name, fn, volatile in self.collectors:
             if volatile_only and not volatile:
                 continue
             try:
@@ -205,6 +226,8 @@ class Forager:
         Runs until interrupted."""
         log.info("watch mode: interval=%ds, full sweep every %d cycles", interval, full_every)
         self.flush_spool()
+        if self.mode == "diagnostics":
+            return self._watch_diagnostics(interval)
         baseline = self._volatile_keys(self.collect(volatile_only=True))
         # Ship the initial full snapshot once.
         self.ship(self.collect(volatile_only=False))
@@ -225,6 +248,53 @@ class Forager:
                              cycle, len(new_events), res["shipped"], res["spooled"])
         except KeyboardInterrupt:
             log.info("watch stopped")
+
+    def _watch_diagnostics(self, interval: int) -> None:
+        """Continuous health monitoring.
+
+        No change detection: a health reading is meaningful every cycle, and
+        alerts are already threshold-gated by the collectors themselves. Only
+        snapshots that carry an alert, plus one snapshot per cycle, are sent —
+        so `--interval 300` costs about a dozen small events every 5 minutes.
+        """
+        log.info("diagnostics watch: sampling every %ds", interval)
+        try:
+            while True:
+                self.flush_spool()
+                events = self.collect(volatile_only=True)
+                alerts = [e for e in events if e["event_type"] == "diagnostic_alert"]
+                res = self.ship(events)
+                log.info("health sample: %d event(s), %d alert(s) "
+                         "shipped=%d spooled=%d",
+                         len(events), len(alerts), res["shipped"], res["spooled"])
+                for alert in alerts:
+                    log.warning("ALERT %s: %s", alert["payload"]["rule"],
+                                alert["payload"]["summary"])
+                time.sleep(interval)
+        except KeyboardInterrupt:
+            log.info("watch stopped")
+
+    # -- memory acquisition ------------------------------------------------
+
+    def acquire_memory(self, dest_dir, **kwargs) -> dict:
+        """Capture physical memory and ship the resulting chain entries.
+
+        The image itself never goes to the Hive — only its path, size, and
+        SHA-256. A 16 GB image belongs on the HDD, not in an evidence
+        database on an SD card.
+        """
+        from .memory import acquire
+
+        events = [self._stamp(ev) for ev in acquire(dest_dir, **kwargs)]
+        result = self.ship(events)
+        acquired = next((e for e in events
+                         if e["event_type"] == "memory_acquired"), None)
+        failed = next((e for e in events
+                       if e["event_type"] == "memory_acquisition_failed"), None)
+        return {"ok": acquired is not None,
+                "acquired": acquired["payload"] if acquired else None,
+                "error": failed["payload"].get("reason") if failed else None,
+                **result}
 
     # change detection ----------------------------------------------------
 

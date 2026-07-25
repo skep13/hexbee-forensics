@@ -8,6 +8,10 @@
     hexbee-hive verify                        verify the evidence hash chain
     hexbee-hive correlate                     backfill correlation over old events
     hexbee-hive report <case_id> [--format html|json|csv] [-o FILE]
+    hexbee-hive syslog [--port 5514]          syslog receiver + anomaly engine
+    hexbee-hive sync-intel                    pre-deployment threat intel pull
+    hexbee-hive scope add cidr 10.0.0.0/24    authorise an engagement range
+    hexbee-hive attack coverage [--case N]    ATT&CK tactic breakdown
 """
 
 from __future__ import annotations
@@ -186,6 +190,137 @@ def cmd_security_check(_args) -> int:
     return 1 if report["critical"] else 0
 
 
+def cmd_syslog(args) -> int:
+    """Run the syslog receiver + log anomaly engine."""
+    from .correlate import Correlator
+    from .syslog import SyslogListener
+
+    cfg, db = _open_db()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+    listener = SyslogListener(cfg, db, Correlator(db, cfg.correlation_window_seconds),
+                              host=args.host, port=args.port)
+    if args.port < 1024:
+        print(f"Binding udp/{args.port} needs privileges. Either run with "
+              f"sudo, grant the capability once "
+              f"(setcap cap_net_bind_service=+ep), or use --port 5514 and "
+              f"redirect with iptables.", file=sys.stderr)
+    try:
+        listener.run_forever()
+    except PermissionError:
+        print(f"Permission denied binding udp/{args.port}.", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        print(f"Cannot bind udp/{args.port}: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def cmd_sync_intel(args) -> int:
+    """Pre-deployment: pull threat intel feeds while online."""
+    from .intel import FEEDS, sync
+
+    cfg, _ = _open_db()
+    if args.list:
+        print("Available feeds:")
+        for name, feed in FEEDS.items():
+            print(f"  {name:<22} {feed.kind:<8} {feed.url}")
+        return 0
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    print("Syncing threat intel. This is the only Hive command that uses the "
+          "internet — run it before deployment, not in the field.\n")
+    summary = sync(cfg, args.feeds or None, max_rows=args.max_rows)
+    for result in summary["results"]:
+        state = "ok" if result["ok"] else f"FAILED — {result.get('error', '')}"
+        print(f"  {result['feed']:<22} {result['rows']:>8} rows   {state}")
+    stats = summary["stats"]
+    print(f"\n{stats['indicators']} indicator(s) total in {stats['path']} "
+          f"({stats.get('size_bytes', 0) // 1024} KB)")
+    if summary["failed"]:
+        print(f"\nFailed feeds: {', '.join(summary['failed'])}", file=sys.stderr)
+        print("abuse.ch requires a free account for most downloads. Create one "
+              "and set HEXBEE_ABUSE_CH_KEY to your Auth-Key.", file=sys.stderr)
+        return 1
+    return 0
+
+
+def cmd_intel_status(_args) -> int:
+    from .intel import IntelStore, intel_db_path
+
+    cfg, _ = _open_db()
+    info = IntelStore(intel_db_path(cfg)).stats()
+    if not info["available"]:
+        print(f"No intel database at {info['path']}. Run: hexbee-hive sync-intel")
+        return 1
+    print(f"Indicators: {info['indicators']}  "
+          f"({info.get('size_bytes', 0) // 1024} KB at {info['path']})")
+    for kind, count in sorted(info.get("by_kind", {}).items()):
+        print(f"  {kind:<10} {count}")
+    print("\nFeeds:")
+    for feed in info["feeds"]:
+        print(f"  {feed['name']:<22} {feed['rows']:>8} rows  "
+              f"{feed['last_sync']}  {feed['status']}")
+    return 0
+
+
+def cmd_scope(args) -> int:
+    from . import scope as scope_mod
+
+    _, db = _open_db()
+    if args.scope_cmd == "list":
+        rules = scope_mod.list_rules(db)
+        if not rules:
+            print("No scope rules. Active Queen tooling is blocked until one exists.")
+            return 0
+        for r in rules:
+            window = f"{r['starts_at'] or '-'} .. {r['ends_at'] or '-'}"
+            print(f"  #{r['id']:<4} {r['kind']:<7} {r['value']:<24} "
+                  f"auth={r['auth_ref'] or '-':<18} {window}  "
+                  f"{'active' if r['active'] else 'inactive'}")
+        return 0
+    if args.scope_cmd == "add":
+        try:
+            rule_id = scope_mod.add_rule(db, args.kind, args.value, actor="cli",
+                                         auth_ref=args.auth_ref,
+                                         starts_at=args.starts, ends_at=args.ends,
+                                         note=args.note or "")
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+        print(f"Scope rule {rule_id} added.")
+        return 0
+    if args.scope_cmd == "del":
+        ok = scope_mod.remove_rule(db, args.id, actor="cli")
+        print("Removed." if ok else "No such rule.")
+        return 0 if ok else 1
+    decision = scope_mod.check(db, args.target)
+    print(("IN SCOPE — " if decision else "OUT OF SCOPE — ") + decision.reason)
+    return 0 if decision else 2
+
+
+def cmd_attack(args) -> int:
+    from . import attack
+
+    _, db = _open_db()
+    if args.attack_cmd == "backfill":
+        learned = attack.load_bundle(args.bundle)
+        if learned:
+            print(f"Loaded {learned} technique definitions from the ATT&CK bundle.")
+        tagged = attack.backfill(db)
+        print(f"Attributed techniques to {tagged} previously untagged event(s).")
+        return 0
+    coverage = (attack.case_coverage(db, args.case) if args.case
+                else attack.global_coverage(db))
+    print(f"{coverage['distinct_techniques']} technique(s) across "
+          f"{coverage['total_attributions']} attribution(s)\n")
+    for tactic in coverage["tactics"]:
+        if not tactic["events"]:
+            continue
+        print(f"{tactic['label']} ({tactic['events']})")
+        for tech in tactic["techniques"]:
+            print(f"    {tech['id']:<12} {tech['name'][:56]:<56} x{tech['count']}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="hexbee-hive", description="HexBee Hive server")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -221,6 +356,51 @@ def main(argv: list[str] | None = None) -> int:
     vb.add_argument("bundle_dir")
     vb.set_defaults(fn=cmd_verify_bundle)
     sub.add_parser("security-check", help="report security posture").set_defaults(fn=cmd_security_check)
+
+    sl = sub.add_parser("syslog", help="run the syslog receiver + anomaly engine")
+    sl.add_argument("--host", default="0.0.0.0")
+    sl.add_argument("--port", type=int, default=514,
+                    help="514 needs privileges; 5514 does not")
+    sl.set_defaults(fn=cmd_syslog)
+
+    si = sub.add_parser("sync-intel",
+                        help="pre-deployment: download threat intel feeds")
+    si.add_argument("feeds", nargs="*",
+                    help="feed names (default: the small 'recent' set)")
+    si.add_argument("--max-rows", type=int, default=250_000,
+                    help="per-feed row cap (protects the SD card and lookup time)")
+    si.add_argument("--list", action="store_true", help="list known feeds and exit")
+    si.set_defaults(fn=cmd_sync_intel)
+    sub.add_parser("intel-status",
+                   help="local threat intel database status").set_defaults(
+        fn=cmd_intel_status)
+
+    scp = sub.add_parser("scope", help="authorised engagement scope").add_subparsers(
+        dest="scope_cmd", required=True)
+    scp.add_parser("list").set_defaults(fn=cmd_scope)
+    sadd = scp.add_parser("add")
+    sadd.add_argument("kind", choices=("cidr", "host", "domain"))
+    sadd.add_argument("value")
+    sadd.add_argument("--auth-ref", default="")
+    sadd.add_argument("--starts")
+    sadd.add_argument("--ends")
+    sadd.add_argument("--note")
+    sadd.set_defaults(fn=cmd_scope)
+    sdel = scp.add_parser("del")
+    sdel.add_argument("id", type=int)
+    sdel.set_defaults(fn=cmd_scope)
+    schk = scp.add_parser("check")
+    schk.add_argument("target")
+    schk.set_defaults(fn=cmd_scope)
+
+    atk = sub.add_parser("attack", help="MITRE ATT&CK attribution").add_subparsers(
+        dest="attack_cmd", required=True)
+    abf = atk.add_parser("backfill", help="tag events that have no techniques yet")
+    abf.add_argument("--bundle", help="path to an offline ATT&CK STIX bundle")
+    abf.set_defaults(fn=cmd_attack)
+    acv = atk.add_parser("coverage", help="tactic/technique breakdown")
+    acv.add_argument("--case", type=int)
+    acv.set_defaults(fn=cmd_attack)
 
     args = parser.parse_args(argv)
     return args.fn(args)

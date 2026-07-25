@@ -3,10 +3,10 @@ from pathlib import Path
 
 import pytest
 
-# Make hive/ and queen/ importable without installation.
+# Make every component importable without installation.
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "hive"))
-sys.path.insert(0, str(ROOT / "queen"))
+for component in ("hive", "queen", "comb", "forager", "netmon"):
+    sys.path.insert(0, str(ROOT / component))
 
 from hexbee_hive.db import Database  # noqa: E402
 

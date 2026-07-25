@@ -18,8 +18,78 @@ Roles: **viewer** ⊂ **investigator** ⊂ **administrator**.
 |---|---|---|
 | `POST /ingest` | header `X-HexBee-Ingest-Key` | one event object or an array of them |
 
-Returns `{stored, results: [{event_id, incident_id}], errors}`. Disabled
-unless `HEXBEE_INGEST_KEY` is set.
+Returns `{stored, results: [{event_id, incident_id, techniques}], errors}`.
+Disabled unless `HEXBEE_INGEST_KEY` is set. `techniques` lists the MITRE
+ATT&CK ids attributed to the event at ingest.
+
+## Log forwarding
+
+| Method & path | Auth | Body |
+|---|---|---|
+| `POST /logs` | header `X-HexBee-Ingest-Key` | one JSON log record or an array (max 2000) |
+
+For a Windows Event Log forwarder (NXLog `om_http`, winlogbeat). Records run
+through the same anomaly rules as UDP syslog. Returns
+`{received, anomalies, findings}`. **Only findings are stored** — the raw log
+stream never enters the database.
+
+## Engagement scope
+
+Every active Queen tool checks this before it transmits. Fails closed: with no
+rules defined, everything is denied (`HEXBEE_SCOPE_MODE=permissive` relaxes
+that for lab use only).
+
+| Method & path | Role | Notes |
+|---|---|---|
+| `GET /scope` | viewer | `?case_id=` — returns `{scope, summary, mode}` |
+| `POST /scope` | investigator | `{kind: cidr\|host\|domain, value, auth_ref?, starts_at?, ends_at?, case_id?, note?}` |
+| `DELETE /scope/<id>` | investigator | |
+| `GET /scope/check` | viewer | `?target=&case_id=` → `{allowed, reason, auth_ref, rule}` |
+| `POST /scope/violation` | investigator | `{target, tool, reason, extra?}` → writes a `scope_violation` event into the chain |
+
+Hostnames are matched literally against host/domain rules; DNS is never
+consulted, so an attacker-controlled record cannot widen the engagement.
+
+## MITRE ATT&CK
+
+| Method & path | Role | Notes |
+|---|---|---|
+| `GET /attack/coverage` | viewer | tactic/technique breakdown across all evidence |
+| `GET /attack/coverage/<case_id>` | viewer | scoped to one case |
+| `GET /events/<id>/techniques` | viewer | techniques attributed to one event |
+
+Attribution lives in `event_techniques`, deliberately **outside** the hash
+chain — it is Hive-side interpretation, not evidence.
+
+## Engagement reporting
+
+| Method & path | Role | Notes |
+|---|---|---|
+| `GET /cases/<id>/engagement` | viewer | structured report data: case, mode, stats, grouped findings, ATT&CK coverage, scope, timeline, chain verification, anchor |
+| `POST /cases/<id>/mode` | investigator | `{mode: ir\|pentest\|diagnostics}` |
+| `POST /incidents/<id>/triage` | investigator | structured triage prompt to Hive Mind; falls back to the rule engine |
+
+The dashboard's `/cases/<id>/preview` page and `hexbee-queen engagement
+report` both consume `/engagement`, so the preview and the delivered document
+cannot drift apart.
+
+## Live stream
+
+| Method & path | Role | Notes |
+|---|---|---|
+| `GET /stream` | viewer | Server-Sent Events; `?since=<event_id>` |
+
+`text/event-stream`. Emits `event: hello` then one `data:` frame per new
+evidence record. The server closes the stream after 5 minutes; browsers
+reconnect automatically.
+
+## Threat intelligence
+
+| Method & path | Role | Notes |
+|---|---|---|
+| `GET /intel/status` | viewer | local feed database: indicator counts by kind, per-feed sync state |
+
+Populated offline by `hexbee-hive sync-intel` before deployment.
 
 ## Evidence
 

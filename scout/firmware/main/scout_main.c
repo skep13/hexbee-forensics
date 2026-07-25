@@ -150,8 +150,20 @@ static void wifi_start(void)
 
 static void on_usb_event(usb_watch_event_t evt, const char *detail_json)
 {
-    emit_event(evt == USB_EVT_INSERTED ? "usb_inserted" : "usb_removed",
-               detail_json);
+    /* Event-type names must match hexbee_hive.normalize.EVENT_SEVERITY, which
+     * is what gives each one its default severity on arrival. `file_metadata`
+     * stays at severity 0 so a 500-file stick does not open 500 incidents;
+     * the Hive's own rules escalate the interesting ones. */
+    const char *type;
+    switch (evt) {
+    case USB_EVT_INSERTED:  type = "usb_inserted";  break;
+    case USB_EVT_REMOVED:   type = "usb_removed";   break;
+    case USB_EVT_FILE:      type = "file_metadata"; break;
+    case USB_EVT_SCAN_DONE: type = "usb_scan";      break;
+    case USB_EVT_ERROR:     type = "usb_scan";      break;
+    default:                type = "usb_scan";      break;
+    }
+    emit_event(type, detail_json);
 }
 
 static void heartbeat_task(void *arg)

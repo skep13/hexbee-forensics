@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "macros.html" import heatmap %}
+{% block title %}ATT&CK Coverage — HexBee Hive{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>MITRE ATT&amp;CK Coverage</h1>
+    <p class="sub">Techniques attributed to evidence at ingest — offline, no
+      lookups, no network.</p>
+  </div>
+  <div class="actions">
+    <form class="inline" method="get" action="/attack">
+      <label class="muted">Case</label>
+      <select name="case_id">
+        <option value="">All evidence</option>
+        {% for c in cases %}
+        <option value="{{ c.id }}" {{ 'selected' if case_id == c.id else '' }}>
+          {{ c.case_number }} — {{ c.title }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Show</button>
+    </form>
+  </div>
+</div>
+
+{{ heatmap(coverage, link_case=None, show_empty=True) }}
+
+<h2>Techniques by tactic</h2>
+{% set any_hits = coverage.total_attributions > 0 %}
+{% if any_hits %}
+<div class="tablewrap"><table>
+  <tr><th>Tactic</th><th>Technique</th><th>Name</th><th>Records</th></tr>
+  {% for t in coverage.tactics %}
+    {% for tech in t.techniques %}
+    <tr>
+      <td>{{ t.label }}</td>
+      <td><span class="mono">{{ tech.id }}</span></td>
+      <td>{{ tech.name }}</td>
+      <td class="mono">{{ tech.count }}</td>
+    </tr>
+    {% endfor %}
+  {% endfor %}
+</table></div>
+{% else %}
+<p class="muted">No techniques attributed yet. Attribution happens at ingest;
+  to tag evidence collected before this feature existed, run
+  <code>hexbee-hive attack backfill</code>
+  {% if user.role == 'administrator' %}or use the Admin page{% endif %}.</p>
+{% endif %}
+
+<div class="panel">
+  <p class="muted" style="margin:0">
+    Technique names come from the built-in mapping table
+    {% if bundle_loaded %}
+      plus the offline ATT&amp;CK STIX bundle currently loaded from
+      <code>HEXBEE_ATTACK_BUNDLE</code>.
+    {% else %}
+      only. For full technique names and any technique not in the built-in
+      table, drop an ATT&amp;CK STIX bundle on the external HDD and set
+      <code>HEXBEE_ATTACK_BUNDLE=/mnt/evidence/enterprise-attack.json</code>,
+      then run <code>hexbee-hive attack backfill</code>.
+    {% endif %}
+  </p>
+</div>
+{% endblock %}

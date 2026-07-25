@@ -25,4 +25,34 @@ config HEXBEE_HEARTBEAT_SECONDS
     int "Heartbeat interval (seconds)"
     default 60
 
+config HEXBEE_USB_HOST
+    bool "Enable USB MSC host acquisition"
+    default n
+    help
+        Enumerate USB mass storage plugged into the Scout, mount it, and
+        harvest per-file metadata. Requires the esp32-s3 USB OTG pins to be
+        wired for host mode (VBUS supply + D+/D-) and the usb_host_msc
+        managed component. With this off, usb_watch runs in simulation mode
+        and emits one fake insertion after boot.
+
+config HEXBEE_USB_HASH_BYTES
+    int "Bytes hashed per file"
+    depends on HEXBEE_USB_HOST
+    default 4096
+    range 512 65536
+    help
+        SHA-256 covers only this many bytes from the start of each file.
+        Full-file hashing on 520 KB of SRAM against a large stick would take
+        hours; Comb computes full hashes later on the Queen. 4 KB is enough
+        to fingerprint a file and to spot header/extension mismatches.
+
+config HEXBEE_USB_MAX_FILES
+    int "Maximum files reported per insertion"
+    depends on HEXBEE_USB_HOST
+    default 512
+    range 16 4096
+    help
+        Hard cap on the directory walk. Each file becomes one MQTT event, so
+        this also bounds how much a single stick can flood the Hive.
+
 endmenu

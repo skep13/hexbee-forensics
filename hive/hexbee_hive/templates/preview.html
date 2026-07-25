@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% from "macros.html" import heatmap, modebar %}
+{% block title %}{{ d.case.case_number }} report preview — HexBee Hive{% endblock %}
+{% block content %}
+
+{{ modebar(d.mode, d.mode_label, d.case.id) }}
+
+<div class="page-head">
+  <div>
+    <h1>Report preview — {{ d.case.case_number }}</h1>
+    <p class="sub">{{ d.case.title }} · assembled {{ d.generated_at }}</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/cases/{{ d.case.id }}">Back to case</a>
+    <a class="btn" href="/api/v1/cases/{{ d.case.id }}/report?format=html">Case report</a>
+    <a class="btn" href="/api/v1/cases/{{ d.case.id }}/engagement">Raw JSON</a>
+  </div>
+</div>
+
+<div class="panel">
+  <p class="muted" style="margin-top:0">This is the same data the client-facing
+    document is built from. Export it with Hive Mind narration and optional PDF
+    from the Queen:</p>
+  <div class="cmd"><code>hexbee-queen engagement report {{ d.case.id }} -o {{ d.case.case_number }}.html --pdf</code>
+    <button class="btn btn-sm copy" data-copy="hexbee-queen engagement report {{ d.case.id }} -o {{ d.case.case_number }}.html --pdf">copy</button></div>
+</div>
+
+<div class="tiles">
+  <div class="tile"><div class="n">{{ d.stats.events }}</div><div class="l">Records</div></div>
+  <div class="tile"><div class="n">{{ d.stats.groups }}</div><div class="l">Finding groups</div></div>
+  <div class="tile {{ 'crit' if d.stats.high else '' }}"><div class="n">{{ d.stats.high }}</div><div class="l">High severity</div></div>
+  <div class="tile"><div class="n">{{ d.stats.medium }}</div><div class="l">Medium severity</div></div>
+  <div class="tile {{ 'ok' if d.verify.ok else 'crit' }}">
+    <div class="n">{{ 'OK' if d.verify.ok else 'BAD' }}</div><div class="l">Evidence chain</div></div>
+</div>
+
+<h2>1. Executive summary</h2>
+<div class="panel"><p style="margin:0">{{ d.summary }}</p></div>
+<p class="muted">This is the deterministic summary, generated from the evidence
+  alone. The exported report replaces it with a Hive Mind draft when a local
+  model is available — the report never depends on one.</p>
+
+<h2>2. Scope and methodology</h2>
+{% if d.scope %}
+<div class="tablewrap"><table>
+  <tr><th>Rule</th><th>Authorisation</th><th>Window (UTC)</th><th>State</th></tr>
+  {% for r in d.scope %}
+  <tr>
+    <td><span class="mono">{{ r.kind }}:{{ r.value }}</span></td>
+    <td>{{ r.auth_ref or '—' }}</td>
+    <td class="mono muted">{{ r.starts_at or '—' }} → {{ r.ends_at or '—' }}</td>
+    <td><span class="badge {{ 'active' if r.active else '' }}">{{ 'active' if r.active else 'inactive' }}</span></td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% else %}
+<p class="muted">No engagement scope recorded for this case. For a pentest
+  deliverable this section should not be empty —
+  <a href="/admin#scope">define the authorised scope</a> before the engagement.</p>
+{% endif %}
+
+<h2>3. Attack narrative — ATT&amp;CK coverage</h2>
+{{ heatmap(d.coverage, link_case=d.case.id, show_empty=False) }}
+
+<h2>4. Technical findings</h2>
+{% if d.groups %}
+{% for g in d.groups %}
+<div class="panel">
+  <h3 style="margin-top:0">{{ loop.index }}. {{ g.title }}
+    <span class="sevchip sev-{{ g.severity }}">{{ g.severity_label }}</span></h3>
+  <p class="muted">{{ g.count }} record(s) · {{ g.devices | join(', ') }} ·
+    {{ g.first_seen }}{% if g.last_seen != g.first_seen %} → {{ g.last_seen }}{% endif %}</p>
+  <div class="tablewrap"><table>
+    <tr><th>Occurred</th><th>Source</th><th>Sev</th><th>Detail</th></tr>
+    {% for e in g.events[:10] %}
+    <tr>
+      <td class="mono muted">{{ e.occurred_at }}</td>
+      <td class="mono">{{ e.device }}</td>
+      <td><span class="sevchip sev-{{ e.severity }}"></span></td>
+      <td><code>{{ e.payload | payload_pretty }}</code></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% if g.count > 10 %}
+  <p class="muted">… and {{ g.count - 10 }} further record(s).
+    <a href="/search?event_type={{ g.event_type }}">View all</a></p>
+  {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<p class="muted">No reportable findings in this case yet. Housekeeping events
+  (heartbeats, collection markers) are counted but not written up.</p>
+{% endif %}
+
+<h2>5. Evidence chain</h2>
+<div class="tablewrap"><table>
+  <tr><th>Property</th><th>Value</th></tr>
+  <tr><td>Chain integrity</td>
+      <td class="{{ '' if d.verify.ok else 'integrity-bad' }}">
+        {% if d.verify.ok %}Verified over {{ d.verify.checked }} records
+        {% else %}FAILED at record {{ d.verify.first_bad_id }}{% endif %}</td></tr>
+  <tr><td>Records in case</td><td class="mono">{{ d.stats.events }}{{ ' (truncated)' if d.stats.truncated else '' }}</td></tr>
+  <tr><td>Sources</td><td class="mono">{{ d.stats.devices }}</td></tr>
+  <tr><td>Incidents</td><td class="mono">{{ d.stats.incidents }}</td></tr>
+  <tr><td>Anchor head hash</td><td><code>{{ d.anchor.head_hash or 'not available' }}</code></td></tr>
+  <tr><td>Anchor signature</td><td><code>{{ d.anchor.signature or 'not available' }}</code></td></tr>
+</table></div>
+{% endblock %}

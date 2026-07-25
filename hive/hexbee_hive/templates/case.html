@@ -1,6 +1,8 @@
 {% extends "base.html" %}
+{% from "macros.html" import heatmap, modebar %}
 {% block title %}{{ case.case_number }} — HexBee Hive{% endblock %}
 {% block content %}
+{{ modebar(case.mode, mode_labels.get(case.mode, 'Incident Response'), None) }}
 <h1>{{ case.case_number }} — {{ case.title }}</h1>
 <p>
   <span class="badge {{ case.status }}">{{ case.status }}</span>
@@ -10,6 +12,7 @@
   <a href="/api/v1/cases/{{ case.id }}/report?format=json">JSON</a> ·
   <a href="/api/v1/cases/{{ case.id }}/report?format=csv">CSV</a>
   &nbsp;·&nbsp; <a href="/cases/{{ case.id }}/label">QR label</a>
+  &nbsp;·&nbsp; <a href="/cases/{{ case.id }}/preview"><strong>Report preview</strong></a>
   {% if user.role in ('investigator', 'administrator') %}
   &nbsp;·&nbsp;
   <form class="inline" method="post" action="/cases/{{ case.id }}/export-form"
@@ -20,6 +23,22 @@
   {% endif %}
 </p>
 {% if case.description %}<p>{{ case.description }}</p>{% endif %}
+
+{% if user.role in ('investigator', 'administrator') %}
+<form class="inline" method="post" action="/cases/{{ case.id }}/mode-form">
+  <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+  <label for="mode">Operating mode</label>
+  <select name="mode" id="mode">
+    {% for m in modes %}
+    <option value="{{ m }}" {{ 'selected' if case.mode == m else '' }}>{{ mode_labels[m] }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn-sm">Set</button>
+</form>
+{% endif %}
+
+<h2>ATT&amp;CK Coverage</h2>
+{{ heatmap(coverage, link_case=case.id, show_empty=False) }}
 
 <h2>Incidents</h2>
 {% if case.incidents %}

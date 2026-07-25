@@ -65,6 +65,32 @@ EVENT_SEVERITY = {
     "usb_device": 1,
     "usb_new": 1,
     "recent_file": 0,
+    # Forager diagnostics mode (IT health, not forensics)
+    "diagnostic_snapshot": 0,
+    "diagnostic_alert": 2,
+    # Forager memory acquisition
+    "memory_acquisition_started": 1,
+    "memory_acquired": 1,
+    "memory_acquisition_failed": 2,
+    # Comb YARA
+    "yara_match": 3,
+    # Netmon (passive capture on the Hive host)
+    "netmon_started": 0,
+    "netmon_stopped": 0,
+    "network_alert": 2,
+    "wireless_sighting": 0,
+    # Hive syslog listener / log anomaly engine
+    "log_anomaly": 2,
+    "log_received": 0,
+    # Queen active tooling
+    "scope_violation": 2,
+    "recon_finding": 1,
+    "credential_capture": 3,
+    "ad_recon_finding": 2,
+    "hid_deployment": 2,
+    "pivot_session": 1,
+    # Physical case seal (Pico button -> C3 -> Hive)
+    "case_seal": 1,
 }
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")

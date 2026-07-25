@@ -2,7 +2,10 @@
 
     hexbee-forager collect                     one-shot triage, ship to Hive
     hexbee-forager collect --output run.json   save locally instead of shipping
+    hexbee-forager collect --mode diagnostics  machine health instead of artifacts
     hexbee-forager watch --interval 60         continuous monitoring
+    hexbee-forager watch --mode diagnostics --interval 300
+    hexbee-forager memory /mnt/evidence        RAM dump to an external disk
     hexbee-forager status                      show config + spool backlog
     hexbee-forager config --hive URL --key K   write a config file for unattended runs
 
@@ -23,7 +26,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .agent import CONFIG_PATHS, Forager, discover_config
+from .agent import CONFIG_PATHS, MODES, Forager, discover_config
 
 
 def _banner() -> None:
@@ -52,7 +55,8 @@ def _default_spool() -> Path:
 def _make(args) -> Forager:
     cfg = discover_config(getattr(args, "hive", None), getattr(args, "key", None))
     spool = Path(args.spool) if getattr(args, "spool", None) else _default_spool()
-    return Forager(cfg["hive_url"], cfg["ingest_key"], spool_dir=spool)
+    return Forager(cfg["hive_url"], cfg["ingest_key"], spool_dir=spool,
+                   mode=getattr(args, "mode", "forensic") or "forensic")
 
 
 def cmd_collect(args) -> int:
@@ -65,7 +69,7 @@ def cmd_collect(args) -> int:
         print(f"{len(events)} events written to {args.output}")
         return 0
     result = forager.run_once()
-    print(f"Collected {result['collected']} events -> "
+    print(f"[{forager.mode}] Collected {result['collected']} events -> "
           f"shipped {result.get('shipped', 0)}, "
           f"spooled {result.get('spooled', 0)}"
           + (f", flushed {result['flushed_from_spool']} from spool"
@@ -97,6 +101,13 @@ def cmd_status(args) -> int:
     print(f"spool backlog: {len(spooled)} file(s), ~{backlog} event(s)")
     from .collectors import HAVE_PSUTIL
     print(f"psutil:     {'available (rich process/network data)' if HAVE_PSUTIL else 'not installed (native fallback)'}")
+    from .memory import status as mem_status
+    mem = mem_status()
+    print(f"memory acq: {'ready via ' + mem['method'] if mem['ready'] else 'unavailable'} "
+          f"(RAM {mem['ram_human']}, "
+          f"{'elevated' if mem['elevated'] else 'not elevated'})")
+    if not mem["ready"]:
+        print(f"            {mem['reason']}")
     return 0
 
 
@@ -126,6 +137,46 @@ def cmd_submit(args) -> int:
     return 0
 
 
+def cmd_memory(args) -> int:
+    """Capture physical memory to the external HDD and chain the result."""
+    from .memory import status as mem_status
+
+    info = mem_status()
+    if args.status:
+        print(f"platform:  {info['platform']}")
+        print(f"RAM:       {info['ram_human']}")
+        print(f"method:    {info['method'] or '(none available)'}")
+        print(f"tool:      {info['tool'] or '-'}")
+        print(f"elevated:  {'yes' if info['elevated'] else 'no'}")
+        print(f"ready:     {'yes' if info['ready'] else 'no'} — {info['reason']}")
+        return 0 if info["ready"] else 1
+
+    _banner()
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    print("NOTE: memory acquisition loads a kernel driver on the target. This "
+          "is the one Forager operation that is not strictly read-only.",
+          file=sys.stderr)
+    print(f"Target RAM {info['ram_human']} -> {args.dest} "
+          f"(method: {info['method'] or 'none'})", file=sys.stderr)
+
+    forager = _make(args)
+    result = forager.acquire_memory(
+        args.dest, method=args.method, case_id=args.case,
+        note=args.note or "", dry_run=args.dry_run)
+    if not result["ok"]:
+        print(f"Acquisition failed: {result['error']}", file=sys.stderr)
+        return 1
+    got = result["acquired"]
+    print(f"Captured {got['size'] / (1024 ** 3):.2f} GB in {got['seconds']}s")
+    print(f"  path:   {got['path']}")
+    print(f"  sha256: {got['sha256']}")
+    print(f"  chained: shipped {result.get('shipped', 0)}, "
+          f"spooled {result.get('spooled', 0)}")
+    print(f"\nAnalyse on the Queen (not here — Volatility needs ~1 GB):"
+          f"\n  vol -f {got['path']} linux.pslist   # or windows.pslist")
+    return 0
+
+
 def cmd_config(args) -> int:
     path = Path(args.path) if args.path else CONFIG_PATHS[0]
     data = {"hive_url": args.hive, "ingest_key": args.key}
@@ -150,12 +201,32 @@ def main(argv: list[str] | None = None) -> int:
 
     c = sub.add_parser("collect", help="one-shot triage collection")
     c.add_argument("-o", "--output", help="write events to a JSON file instead of shipping")
+    c.add_argument("--mode", choices=MODES, default="forensic",
+                   help="forensic (default) = live-response artifacts; "
+                        "diagnostics = SMART, thermals, RAM/swap, failed "
+                        "units, disk fill, top consumers")
     c.set_defaults(fn=cmd_collect)
 
     w = sub.add_parser("watch", help="continuous monitoring")
     w.add_argument("--interval", type=int, default=60, help="seconds between samples")
     w.add_argument("--full-every", type=int, default=30, help="full sweep every N cycles")
+    w.add_argument("--mode", choices=MODES, default="forensic",
+                   help="diagnostics gives continuous health monitoring "
+                        "(try --mode diagnostics --interval 300)")
     w.set_defaults(fn=cmd_watch)
+
+    m = sub.add_parser("memory", help="acquire physical memory to an external disk")
+    m.add_argument("dest", nargs="?", default=".",
+                   help="destination directory — use the external HDD")
+    m.add_argument("--method", choices=("auto", "lime", "winpmem", "kcore"),
+                   default="auto")
+    m.add_argument("--case", type=int, help="Hive case id to record against")
+    m.add_argument("--note", help="free-text note stored with the chain entry")
+    m.add_argument("--status", action="store_true",
+                   help="report what acquisition would use, and stop")
+    m.add_argument("--dry-run", action="store_true",
+                   help="run the prechecks only (space, tooling, privileges)")
+    m.set_defaults(fn=cmd_memory)
 
     s = sub.add_parser("status", help="show config and spool backlog")
     s.set_defaults(fn=cmd_status)

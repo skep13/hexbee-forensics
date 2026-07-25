@@ -42,6 +42,7 @@ forager/usb/dist/
 forager/usb/forager.json
 
 # Editor / OS
+.claude/
 .vscode/
 .idea/
 .DS_Store

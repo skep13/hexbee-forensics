@@ -151,3 +151,79 @@ class HiveClient:
 
     def ai_summarize(self, case_id: int) -> dict:
         return self._request("POST", f"/ai/summarize/{case_id}")
+
+    # -- ingest (active tooling pushing its own findings) ------------------
+
+    def ingest(self, events: list[dict], ingest_key: str) -> dict:
+        """POST findings into the evidence chain.
+
+        Uses the shared ingest key rather than the session token, so Queen
+        tools follow exactly the same path as Scout, Comb, and Forager — one
+        write path into the chain, no exceptions.
+        """
+        url = f"{self.base_url}/api/v1/ingest"
+        req = urllib.request.Request(
+            url, data=json.dumps(events).encode(), method="POST",
+            headers={"Content-Type": "application/json",
+                     "X-HexBee-Ingest-Key": ingest_key})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            try:
+                message = json.loads(exc.read().decode()).get("error", exc.reason)
+            except Exception:
+                message = exc.reason
+            raise HiveError(exc.code, message) from exc
+
+    # -- engagement scope --------------------------------------------------
+
+    def scope_list(self, case_id: int | None = None) -> list[dict]:
+        return self._request("GET", "/scope", params={"case_id": case_id})["scope"]
+
+    def scope_add(self, kind: str, value: str, **fields) -> dict:
+        body = {"kind": kind, "value": value}
+        body.update({k: v for k, v in fields.items() if v is not None})
+        return self._request("POST", "/scope", body)
+
+    def scope_delete(self, rule_id: int) -> None:
+        self._request("DELETE", f"/scope/{rule_id}")
+
+    def scope_check(self, target: str, case_id: int | None = None) -> dict:
+        return self._request("GET", "/scope/check",
+                             params={"target": target, "case_id": case_id})
+
+    def scope_violation(self, target: str, tool: str, reason: str,
+                        extra: dict | None = None) -> dict:
+        return self._request("POST", "/scope/violation",
+                             {"target": target, "tool": tool,
+                              "reason": reason, "extra": extra or {}})
+
+    # -- ATT&CK ------------------------------------------------------------
+
+    def attack_coverage(self, case_id: int | None = None) -> dict:
+        path = f"/attack/coverage/{case_id}" if case_id else "/attack/coverage"
+        return self._request("GET", path)
+
+    def event_techniques(self, event_id: int) -> list[dict]:
+        return self._request("GET", f"/events/{event_id}/techniques")["techniques"]
+
+    # -- case mode ---------------------------------------------------------
+
+    def set_case_mode(self, case_id: int, mode: str) -> dict:
+        return self._request("POST", f"/cases/{case_id}/mode", {"mode": mode})
+
+    # -- threat intel ------------------------------------------------------
+
+    def intel_status(self) -> dict:
+        return self._request("GET", "/intel/status")
+
+    # -- engagement report -------------------------------------------------
+
+    def engagement_data(self, case_id: int) -> dict:
+        """Structured report data, assembled Hive-side.
+
+        Same payload the dashboard preview uses, so the preview an analyst
+        reviews and the document a client receives are built from one source.
+        """
+        return self._request("GET", f"/cases/{case_id}/engagement")

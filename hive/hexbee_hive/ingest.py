@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 
+from . import attack
 from .config import HiveConfig
 from .correlate import Correlator
 from .db import Database
@@ -18,6 +19,57 @@ from .normalize import NormalizationError, normalize
 from .store import audit, store_event
 
 log = logging.getLogger("hexbee.ingest")
+
+# Optional offline threat-intel database, installed once at startup by the web
+# app / engine. Kept as a module-level hook so every existing call site of
+# `process_raw_event` picks intel matching up without a signature change.
+_INTEL = None
+
+
+def set_intel_store(store) -> None:
+    """Attach an `intel.IntelStore` (or None to disable intel matching)."""
+    global _INTEL
+    _INTEL = store
+
+
+def _intel_matches(payload: dict) -> list[dict]:
+    if _INTEL is None:
+        return []
+    try:
+        from .intel import match_intel
+        return match_intel(_INTEL, payload)
+    except Exception:
+        log.exception("intel lookup failed")
+        return []
+
+
+_INTEL_KIND_TO_IOC = {"sha256": "sha256", "md5": "substring", "sha1": "substring",
+                      "ip": "ip", "domain": "domain", "url": "substring"}
+
+
+def _promote_intel(db: Database, hits: list[dict]) -> list[dict]:
+    """Turn threat-feed hits into IOC rows so they get the full treatment
+    (ioc_hits, the `ioc` tag, the audit trail, the /iocs page)."""
+    from .ioc import add_ioc
+
+    promoted = []
+    for hit in hits:
+        kind = _INTEL_KIND_TO_IOC.get(hit["kind"], "substring")
+        row = db.query_one("SELECT * FROM iocs WHERE kind = ? AND value = ?",
+                           (kind, hit["value"].lower()))
+        if row is None:
+            try:
+                add_ioc(db, kind, hit["value"],
+                        f"threat intel: {hit['source']}"
+                        + (f" ({hit['tag']})" if hit.get("tag") else ""),
+                        actor="intel-sync")
+            except (ValueError, Exception):
+                continue
+            row = db.query_one("SELECT * FROM iocs WHERE kind = ? AND value = ?",
+                               (kind, hit["value"].lower()))
+        if row is not None:
+            promoted.append(dict(row))
+    return promoted
 
 
 def process_raw_event(db: Database, correlator: Correlator, raw: dict, source: str) -> dict:
@@ -35,11 +87,26 @@ def process_raw_event(db: Database, correlator: Correlator, raw: dict, source: s
     # (Severity is Hive-side triage metadata, deliberately outside the hash
     # chain, so this never alters the evidence record itself.)
     matches = match_iocs(db, normalized["payload"])
+    # Pre-synced threat intel is checked the same way, but by indexed exact
+    # match rather than substring scan (the feed tables are far too large for
+    # a linear pass on a Pi). A feed hit is auto-promoted into the analyst
+    # watchlist so it appears on /iocs with its provenance.
+    intel_hits = _intel_matches(normalized["payload"])
+    if intel_hits:
+        matches.extend(_promote_intel(db, intel_hits))
     if matches:
         normalized["severity"] = 3
     event_id = store_event(db, normalized)
     if matches:
         record_hits(db, event_id, matches)
+    # ATT&CK attribution: pure dict lookup, stored alongside (never inside)
+    # the evidence record. A tagging failure must not lose the event.
+    try:
+        techniques = attack.tag_event(db, event_id, normalized["event_type"],
+                                      normalized["payload"])
+    except Exception:
+        log.exception("ATT&CK tagging failed for event %d", event_id)
+        techniques = []
     incident_id = correlator.process_event(event_id)
     log.info(
         "event %d stored (%s from %s)%s",
@@ -48,7 +115,8 @@ def process_raw_event(db: Database, correlator: Correlator, raw: dict, source: s
         normalized["device"],
         f" -> incident {incident_id}" if incident_id else "",
     )
-    return {"ok": True, "event_id": event_id, "incident_id": incident_id}
+    return {"ok": True, "event_id": event_id, "incident_id": incident_id,
+            "techniques": techniques}
 
 
 class MqttIngest:

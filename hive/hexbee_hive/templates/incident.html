@@ -33,6 +33,38 @@
 </div>
 {% endif %}
 
+<h2>Quick Triage</h2>
+{% if triage %}
+<div class="panel flash">
+  <p class="muted" style="margin-top:0">Assessment from
+    <strong>{{ triage.engine }}</strong>{% if tactics %} · tactics observed:
+    {{ tactics | join(', ') }}{% endif %}</p>
+  <pre style="white-space:pre-wrap;font-family:var(--ui);margin:0">{{ triage.answer }}</pre>
+</div>
+{% else %}
+<p class="muted">Send this incident to Hive Mind with a structured triage prompt —
+  severity call, next investigative steps, and a containment action — rather
+  than composing a question by hand.</p>
+{% endif %}
+{% if user.role in ('investigator', 'administrator') %}
+<form class="inline" method="post" action="/incidents/{{ incident.id }}/triage-form">
+  <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+  <button type="submit" class="btn-primary">
+    {{ 'Re-run triage' if triage else 'Triage this incident' }}</button>
+</form>
+{% endif %}
+
+{% if coverage and coverage.distinct_techniques %}
+<h2>ATT&amp;CK Attribution</h2>
+<p class="muted">
+  {% for t in coverage.tactics %}{% if t.events %}
+    <strong>{{ t.label }}</strong>:
+    {% for tech in t.techniques %}<span class="tchip" title="{{ tech.name }}">{{ tech.id }}</span>{% endfor %}
+    &nbsp;
+  {% endif %}{% endfor %}
+</p>
+{% endif %}
+
 <h2>Timeline</h2>
 <table>
 <tr><th>Time (UTC)</th><th>Device</th><th>Narrative</th><th>Payload</th></tr>

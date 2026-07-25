@@ -7,6 +7,11 @@ dependencies = [
     "pillow>=10.0",
 ]
 
+[project.optional-dependencies]
+# Malware detection during a scan. Optional: without it Comb skips the YARA
+# pass and says so, rather than failing.
+yara = ["yara-python>=4.3"]
+
 [project.scripts]
 hexbee-comb = "hexbee_comb.cli:main"
 

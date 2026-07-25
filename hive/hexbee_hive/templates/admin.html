@@ -37,6 +37,114 @@
   <span class="muted">— a tamper-evidence receipt; keep it safe, re-verify later.</span>
 </div>
 
+<h2 id="scope">Engagement scope</h2>
+<div class="panel">
+  <p class="muted" style="margin-top:0">
+    Every active Queen tool checks this table before it transmits. Mode:
+    <strong>{{ scope_mode }}</strong> —
+    {% if scope_mode == 'enforce' %}
+      with no rules defined, all active tooling is <strong>blocked</strong>.
+      That is deliberate: an empty scope table is not permission.
+    {% else %}
+      an empty scope table currently allows everything. Set
+      <code>HEXBEE_SCOPE_MODE=enforce</code> before any client engagement.
+    {% endif %}
+  </p>
+  {% if scope.rules %}
+  <table>
+    <tr><th>#</th><th>Rule</th><th>Authorisation</th><th>Window (UTC)</th>
+        <th>Case</th><th>State</th><th></th></tr>
+    {% for r in scope.rules %}
+    <tr>
+      <td class="mono">{{ r.id }}</td>
+      <td><span class="mono">{{ r.kind }}:{{ r.value }}</span></td>
+      <td>{{ r.auth_ref or '—' }}</td>
+      <td class="mono muted">{{ r.starts_at or '—' }} → {{ r.ends_at or '—' }}</td>
+      <td>{% if r.case_id %}<a href="/cases/{{ r.case_id }}">#{{ r.case_id }}</a>{% else %}all{% endif %}</td>
+      <td>{% if r.active %}<span class="badge closed">active</span>
+          {% else %}<span class="badge open">inactive</span>{% endif %}</td>
+      <td>
+        <form class="inline" method="post" action="/admin/scope/{{ r.id }}/toggle">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+          <input type="hidden" name="action" value="{{ 'enable' if not r.active else 'disable' }}">
+          <button type="submit" class="btn-sm">{{ 'Enable' if not r.active else 'Disable' }}</button>
+        </form>
+        <form class="inline" method="post" action="/admin/scope/{{ r.id }}/delete">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+          <button type="submit" class="btn-sm">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p class="muted">{{ scope.active }} active rule(s), {{ scope.in_window }} currently
+    in their authorised time window.
+    {% if scope.auth_refs %}Authorisations: {{ scope.auth_refs | join(', ') }}.{% endif %}</p>
+  {% else %}
+  <p class="integrity-bad">No scope rules defined. Active tooling is blocked.</p>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">Authorise a target range</h3>
+  <form method="post" action="/admin/scope/new"
+        style="display:flex; flex-wrap:wrap; gap:.6rem; align-items:end;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <label>Kind<br>
+      <select name="kind">
+        <option value="cidr">cidr</option>
+        <option value="host">host</option>
+        <option value="domain">domain</option>
+      </select></label>
+    <label>Value<br><input name="value" required placeholder="10.10.0.0/24" autocomplete="off"></label>
+    <label>Authorisation ref<br><input name="auth_ref" placeholder="SOW-2026-14" autocomplete="off"></label>
+    <label>Starts (UTC)<br><input name="starts_at" placeholder="2026-08-01T09:00:00Z" autocomplete="off"></label>
+    <label>Ends (UTC)<br><input name="ends_at" placeholder="2026-08-05T18:00:00Z" autocomplete="off"></label>
+    <label>Case<br>
+      <select name="case_id">
+        <option value="">all cases</option>
+        {% for c in cases %}<option value="{{ c.id }}">{{ c.case_number }}</option>{% endfor %}
+      </select></label>
+    <label>Note<br><input name="note" autocomplete="off"></label>
+    <button type="submit" class="btn-primary">Add rule</button>
+  </form>
+  <p class="muted">Hostnames are matched literally against host/domain rules —
+    DNS is never consulted, so an attacker-controlled record cannot widen the
+    engagement. Leave the time window blank for no bound.</p>
+</div>
+
+<h2>Threat intelligence</h2>
+<div class="panel">
+  {% if intel.available %}
+  <p style="margin-top:0"><strong>{{ intel.indicators }}</strong> indicator(s)
+    in <code>{{ intel.path }}</code> ({{ (intel.size_bytes or 0) // 1024 }} KB)</p>
+  <table>
+    <tr><th>Feed</th><th>Rows</th><th>Last sync</th><th>Status</th></tr>
+    {% for f in intel.feeds %}
+    <tr><td class="mono">{{ f.name }}</td><td class="mono">{{ f.rows }}</td>
+        <td class="mono muted">{{ f.last_sync }}</td><td>{{ f.status }}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted" style="margin-top:0">No local intel database. Feed hits are
+    matched entirely offline, but the feeds must be pulled before deployment:</p>
+  <div class="cmd"><code>hexbee-hive sync-intel</code>
+    <button class="btn btn-sm copy" data-copy="hexbee-hive sync-intel">copy</button></div>
+  {% endif %}
+</div>
+
+<h2>ATT&amp;CK attribution</h2>
+<div class="panel">
+  <p class="muted" style="margin-top:0">Techniques are attributed at ingest.
+    Backfill tags evidence collected before this feature existed, and reloads
+    an offline STIX bundle if <code>HEXBEE_ATTACK_BUNDLE</code> is set.</p>
+  <form class="inline" method="post" action="/admin/attack/backfill">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <button type="submit">Backfill ATT&amp;CK tags</button>
+  </form>
+  <a class="btn" href="/attack">View coverage</a>
+</div>
+
 <h2>Users</h2>
 <div class="panel">
   <table>

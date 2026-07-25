@@ -1,0 +1,15 @@
+REM NAME proof-of-execution
+REM Opens Notepad and types a marker line. This is the payload to use when
+REM you need to demonstrate that HID injection is possible on a target
+REM without doing anything to it — the finding is "unprivileged USB ports
+REM accept keystroke injection", and this proves it.
+DEFAULT_DELAY 40
+DELAY 1000
+GUI r
+DELAY 600
+STRING notepad
+ENTER
+DELAY 1500
+STRINGLN HexBee Stinger: HID keystroke injection succeeded on this host.
+STRINGLN Authorised assessment marker. No changes were made to this system.
+STRINGLN Remediation: restrict USB HID via device control policy.

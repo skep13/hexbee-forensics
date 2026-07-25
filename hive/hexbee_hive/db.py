@@ -126,6 +126,42 @@ CREATE TABLE IF NOT EXISTS audit_log (
     action     TEXT NOT NULL,
     detail     TEXT NOT NULL DEFAULT ''
 );
+
+-- Authorised engagement scope. Active Queen-side tooling checks this table
+-- before firing, so an out-of-scope target is refused rather than attacked.
+CREATE TABLE IF NOT EXISTS engagement_scope (
+    id          INTEGER PRIMARY KEY,
+    kind        TEXT NOT NULL,     -- cidr | host | domain
+    value       TEXT NOT NULL,
+    auth_ref    TEXT NOT NULL DEFAULT '',   -- client authorisation reference
+    starts_at   TEXT,              -- UTC ISO-8601, NULL = no start bound
+    ends_at     TEXT,              -- UTC ISO-8601, NULL = no end bound
+    case_id     INTEGER REFERENCES cases(id),
+    note        TEXT NOT NULL DEFAULT '',
+    added_by    TEXT NOT NULL,
+    added_at    TEXT NOT NULL,
+    active      INTEGER NOT NULL DEFAULT 1,
+    UNIQUE (kind, value)
+);
+
+-- MITRE ATT&CK techniques attributed to an event by the offline tagger.
+-- Kept outside the hash chain: it is Hive-side interpretation, not evidence.
+CREATE TABLE IF NOT EXISTS event_techniques (
+    event_id     INTEGER NOT NULL REFERENCES events(id),
+    technique_id TEXT NOT NULL,
+    tactic       TEXT NOT NULL,
+    PRIMARY KEY (event_id, technique_id)
+);
+CREATE INDEX IF NOT EXISTS idx_techniques_tactic ON event_techniques(tactic);
+
+-- Operating mode per case (ir | pentest | diagnostics). Drives the dashboard
+-- banner and which event types the UI highlights.
+CREATE TABLE IF NOT EXISTS case_modes (
+    case_id  INTEGER PRIMARY KEY REFERENCES cases(id),
+    mode     TEXT NOT NULL DEFAULT 'ir',
+    set_by   TEXT NOT NULL DEFAULT '',
+    set_at   TEXT NOT NULL DEFAULT ''
+);
 """
 
 

@@ -162,6 +162,7 @@ class _Handler(BaseHTTPRequestHandler):
                 "placeholder='/mnt/evidence  or  C:\\cases\\usb' required>"
                 "<div class='row'><div><label>Max files (blank = all)</label>"
                 "<input type='number' name='max_files' min='1'></div></div>"
+                + self._yara_block() +
                 "<div class='panel'><label style='margin-top:0'>"
                 "<input type='checkbox' name='upload'> Upload findings to the Hive</label>"
                 "<div class='row'><div><label>Hive URL</label>"
@@ -169,6 +170,23 @@ class _Handler(BaseHTTPRequestHandler):
                 f"<div><label>Ingest key</label><input type='text' name='key' value='{_esc(d.get('key',''))}'></div></div>"
                 f"<label>Device name</label><input type='text' name='device' value='{_esc(d.get('device','Comb01'))}'></div>"
                 "<button type='submit'>Scan</button></form></div>")
+
+    def _yara_block(self) -> str:
+        """YARA controls, with the current capability spelled out so the
+        operator is never left guessing why there were no matches."""
+        from .yara_scan import status as yara_status
+
+        info = yara_status(None)
+        note = (f"ready — {info['rule_files']} rule file(s) in "
+                f"{_esc(info['rules_dir'] or '')}"
+                if info["available"] else _esc(info["reason"]))
+        css = "" if info["available"] else " class='muted'"
+        return ("<div class='panel'><label style='margin-top:0'>Malware detection (YARA)</label>"
+                f"<p{css}>{note}</p>"
+                "<label>Rules file or directory (blank = auto-detect)</label>"
+                "<input type='text' name='yara_rules' placeholder='/mnt/evidence/yara'>"
+                "<label><input type='checkbox' name='no_yara'> Skip YARA for this scan</label>"
+                "</div>")
 
     def _carve_form(self) -> str:
         d = self._defaults()
@@ -191,7 +209,9 @@ class _Handler(BaseHTTPRequestHandler):
                 f"<div class='panel err'>Path not found: <code>{_esc(path)}</code></div>"
                 "<p><a href='/'>← back</a></p>"), status=400)
         mf = f.get("max_files", "").strip()
-        result = scan(path, max_files=int(mf) if mf.isdigit() else None)
+        result = scan(path, max_files=int(mf) if mf.isdigit() else None,
+                      yara_rules=f.get("yara_rules", "").strip() or None,
+                      use_yara=not f.get("no_yara"))
         self.server.last_report = render_report(result)
         self.server.defaults = {**self._defaults(), "path": path, "hive": f.get("hive", ""),
                                 "key": f.get("key", ""), "device": f.get("device", "Comb01")}
@@ -207,10 +227,15 @@ class _Handler(BaseHTTPRequestHandler):
             f"<div class='card'><div class='n'>{n}</div><div class='l'>{lbl}</div></div>"
             for n, lbl in [(len(result.files), "files"), (len(result.executables), "executables"),
                            (len(result.mismatches), "mismatches"), (len(result.gps_points), "GPS"),
-                           (len(result.visits), "web visits")])
+                           (len(result.visits), "web visits"), (len(result.yara), "YARA hits")])
+        yara_line = (
+            f"<p class='err'><strong>{len(result.yara)}</strong> YARA match(es): "
+            + _esc(", ".join(sorted({m.rule for m in result.yara})[:8])) + "</p>"
+            if result.yara else
+            f"<p class='muted'>YARA: {_esc(result.yara_status.get('reason', 'not run'))}</p>")
         self.server.last_summary = (
             f"<div class='panel'><h2 style='margin-top:0'>Last scan: <code>{_esc(path)}</code></h2>"
-            f"<div class='cards'>{cards}</div>{ship}"
+            f"<div class='cards'>{cards}</div>{yara_line}{ship}"
             "<a href='/report' target='_blank'>Open full report</a></div>")
         self.send_response(303); self.send_header("Location", "/"); self.end_headers()
 

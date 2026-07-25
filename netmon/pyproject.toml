@@ -1,0 +1,21 @@
+[project]
+name = "hexbee-netmon"
+version = "0.1.0"
+description = "HexBee Netmon — passive network monitoring and lightweight IDS for the Hive host"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+# Only needed for 802.11 monitor-mode capture. The default raw-socket backend
+# is stdlib-only and costs a fraction of the memory on a Pi 3B+.
+wireless = ["scapy>=2.5"]
+
+[project.scripts]
+hexbee-netmon = "hexbee_netmon.cli:main"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["hexbee_netmon*"]

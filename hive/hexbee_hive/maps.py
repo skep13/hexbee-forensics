@@ -97,6 +97,57 @@ def evidence_points(db) -> list[dict]:
     return points
 
 
+def cluster_points(points: list[dict], zoom: int, cell_px: int = 56) -> list[dict]:
+    """Grid-cluster markers for a given zoom level.
+
+    Wireless sightings from the C3 scanner arrive in the hundreds from a
+    single walk-around, and hundreds of overlapping pins is a map you cannot
+    read. Clustering is done server-side because the viewer is deliberately
+    dependency-free JavaScript, and because a Pi doing arithmetic over a
+    thousand points is cheaper than a browser doing it on every pan.
+
+    The grid is in Web Mercator pixel space, so a cluster is `cell_px` pixels
+    wide at the requested zoom and splits apart naturally as you zoom in.
+    """
+    import math
+
+    if not points:
+        return []
+    zoom = max(0, min(int(zoom), 19))
+    world_px = 256 * (2 ** zoom)
+    cells: dict[tuple, list[dict]] = {}
+
+    for point in points:
+        lat = max(-85.05112878, min(85.05112878, point["lat"]))
+        x = (point["lon"] + 180.0) / 360.0 * world_px
+        sin_lat = math.sin(math.radians(lat))
+        y = (0.5 - math.log((1 + sin_lat) / (1 - sin_lat)) / (4 * math.pi)) * world_px
+        cells.setdefault((int(x // cell_px), int(y // cell_px)), []).append(point)
+
+    clusters = []
+    for members in cells.values():
+        if len(members) == 1:
+            clusters.append({**members[0], "count": 1, "cluster": False})
+            continue
+        types: dict[str, int] = {}
+        for member in members:
+            types[member["event_type"]] = types.get(member["event_type"], 0) + 1
+        clusters.append({
+            "lat": sum(m["lat"] for m in members) / len(members),
+            "lon": sum(m["lon"] for m in members) / len(members),
+            "count": len(members),
+            "cluster": True,
+            "event_type": max(types, key=types.get),
+            "types": types,
+            "label": f"{len(members)} evidence points",
+            "event_id": members[0]["event_id"],
+            "incident_id": members[0]["incident_id"],
+            # Enough detail for the popup without shipping every member.
+            "sample": [m["label"] for m in members[:6]],
+        })
+    return clusters
+
+
 # -- placeholder tile (no PIL needed: hand-built PNG) ---------------------
 
 def _build_placeholder_tile() -> bytes:

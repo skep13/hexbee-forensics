@@ -1,0 +1,28 @@
+[Unit]
+Description=HexBee Netmon (passive network monitoring)
+After=network-online.target hexbee-web.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hexbee
+# ids and recon are receive-only; diagnostics transmits ordinary probes.
+Environment=HEXBEE_HIVE_URL=http://127.0.0.1:8080
+EnvironmentFile=-/etc/hexbee/netmon.env
+ExecStart=/usr/local/bin/hexbee-netmon run --mode ids --iface eth0
+Restart=on-failure
+RestartSec=10
+
+# Raw capture needs CAP_NET_RAW only. Everything else is dropped, so a bug in
+# the decoder cannot become root on the Hive host.
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/hexbee /home/hexbee/.hexbee-netmon
+MemoryMax=192M
+
+[Install]
+WantedBy=multi-user.target
