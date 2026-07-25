@@ -1,5 +1,12 @@
 """hexbee-hive command line.
 
+New here? Two commands cover it:
+
+    hexbee-hive setup                         guided first-time setup
+    hexbee-hive doctor                        what works, and how to fix what doesn't
+
+Everything else:
+
     hexbee-hive init                          create the database
     hexbee-hive engine                        run the MQTT ingest engine
     hexbee-hive web                           run the dashboard/API server
@@ -321,6 +328,29 @@ def cmd_attack(args) -> int:
     return 0
 
 
+def cmd_setup(_args) -> int:
+    """Guided first run."""
+    from .setup_wizard import run
+
+    try:
+        return run()
+    except KeyboardInterrupt:
+        print("\n\nSetup cancelled. Nothing was left half-finished — run "
+              "`hexbee-hive setup` again whenever you're ready.")
+        return 1
+
+
+def cmd_doctor(args) -> int:
+    """What works on this machine, and how to fix what doesn't."""
+    from . import doctor
+
+    cfg, db = _open_db()
+    report = doctor.run(cfg, db)
+    print(doctor.render(report, verbose=args.verbose))
+    db.close()
+    return 0 if report.ready else 1
+
+
 def cmd_howto(args) -> int:
     """Answer a 'how do I use HexBee' question, with or without a model."""
     from .ai import LocalAI, how_to
@@ -418,6 +448,15 @@ def main(argv: list[str] | None = None) -> int:
     schk = scp.add_parser("check")
     schk.add_argument("target")
     schk.set_defaults(fn=cmd_scope)
+
+    sub.add_parser("setup", help="guided first-time setup (start here)"
+                   ).set_defaults(fn=cmd_setup)
+
+    doc = sub.add_parser("doctor", help="check what works on this machine and "
+                                        "how to fix what doesn't")
+    doc.add_argument("-v", "--verbose", action="store_true",
+                     help="also list everything that is already working")
+    doc.set_defaults(fn=cmd_doctor)
 
     ht = sub.add_parser("howto", help="ask how to use HexBee (grounded, "
                                       "works with or without a local model)")

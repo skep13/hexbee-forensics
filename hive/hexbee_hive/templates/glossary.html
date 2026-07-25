@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Glossary — HexBee Hive{% endblock %}
+{% block content %}
+
+<p class="muted"><a href="/start">&larr; Start Here</a></p>
+
+<div class="page-head">
+  <div>
+    <h1>What these words mean</h1>
+    <p class="sub">Forensics vocabulary, in plain English. No prior knowledge
+      assumed.</p>
+  </div>
+</div>
+
+<div class="tablewrap"><table>
+  <tr><th style="width:12rem">Term</th><th>What it means</th></tr>
+  {% for term, definition in glossary %}
+  <tr>
+    <td><strong>{{ term }}</strong></td>
+    <td>{{ definition }}</td>
+  </tr>
+  {% endfor %}
+</table></div>
+
+<div class="panel">
+  <p class="muted" style="margin:0">Anything else you want explained, ask the
+    <a href="/assistant">assistant</a> — it can define these and answer
+    "how do I…" questions from HexBee's own manual.</p>
+</div>
+{% endblock %}

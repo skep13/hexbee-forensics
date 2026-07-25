@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Start Here — HexBee Hive{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>Start Here</h1>
+    <p class="sub">Pick the situation that matches yours. Each one walks
+      through the whole job, step by step, and explains why each step
+      matters.</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/glossary">What do these words mean?</a>
+    <a class="btn" href="/assistant">Ask a question</a>
+  </div>
+</div>
+
+{% if not ready %}
+<div class="panel" style="border-left:4px solid var(--warning)">
+  <h2 style="margin-top:0">Finish setting up first</h2>
+  <p class="muted">Some things aren't ready yet. Run this in a terminal and it
+    will tell you exactly what to do:</p>
+  <div class="cmd"><code>hexbee-hive doctor</code>
+    <button class="btn btn-sm copy" data-copy="hexbee-hive doctor">copy</button></div>
+</div>
+{% endif %}
+
+<div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(19rem,1fr))">
+  {% for wf in workflows %}
+  <a class="tile" href="/start/{{ wf.id }}" style="text-align:left">
+    <div class="l" style="margin-bottom:.4rem">{{ wf.mode }} · {{ wf.time }}</div>
+    <div style="font-size:1.02rem;font-weight:650;line-height:1.35;margin-bottom:.4rem">
+      {{ wf.situation }}</div>
+    <div class="muted" style="font-size:.82rem">{{ wf.summary }}</div>
+    <div class="l" style="margin-top:.6rem">{{ wf.steps|length }} steps</div>
+  </a>
+  {% endfor %}
+</div>
+
+<h2>If you're completely new</h2>
+<div class="panel">
+  <p style="margin-top:0">HexBee collects digital evidence and keeps it in a
+    log that can't be quietly edited. Three ideas cover most of it:</p>
+  <ul class="muted" style="line-height:1.7">
+    <li><strong>Event</strong> — one thing that was observed. A USB stick
+      plugged in, a suspicious file found, someone logging in.</li>
+    <li><strong>Incident</strong> — related events grouped together, so you
+      see a sequence instead of a pile. HexBee does this for you.</li>
+    <li><strong>Case</strong> — the folder for one job. Make one before you
+      start; everything you find gets filed against it, and the report comes
+      out of it at the end.</li>
+  </ul>
+  <p class="muted">Every record is sealed with a fingerprint of the one before
+    it. That's what lets you show, later, that nothing was altered — and it's
+    the difference between notes and evidence.</p>
+  <p><a href="/glossary">Full glossary</a></p>
+</div>
+{% endblock %}

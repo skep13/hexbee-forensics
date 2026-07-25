@@ -26,6 +26,8 @@ import glob
 import hashlib
 import hmac
 import logging
+import platform
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,8 +38,52 @@ SEAL_PREFIX = "HEXBEE-SEAL"
 READY_PREFIX = "HEXBEE-SENTINEL"
 WARN_PREFIX = "HEXBEE-WARN"
 
-# Where a Pico's CDC data endpoint usually lands.
-SERIAL_GLOBS = ["/dev/ttyACM*", "/dev/ttyUSB*"]
+# Where a Pico's CDC data endpoint lands, per platform. Every OS names USB
+# serial devices differently, and getting this wrong means the token is
+# plugged in and working while the listener reports "no Sentinel found".
+SERIAL_GLOBS = {
+    "Linux": ["/dev/ttyACM*", "/dev/ttyUSB*"],
+    # macOS exposes both a /dev/tty.* (blocking, waits for carrier detect) and
+    # a /dev/cu.* (call-out, opens immediately) node for the same device. cu
+    # is the one you want for a device that talks first.
+    "Darwin": ["/dev/cu.usbmodem*", "/dev/cu.usbserial*", "/dev/cu.SLAB*"],
+    "Windows": [],          # enumerated through pyserial, not globbed
+}
+
+# Where CIRCUITPY mounts, for the messages that tell an operator where to look.
+CIRCUITPY_HINTS = {
+    "Linux": "/media/$USER/CIRCUITPY",
+    "Darwin": "/Volumes/CIRCUITPY",
+    "Windows": "the CIRCUITPY drive (usually D: or E:)",
+}
+
+
+def circuitpy_hint() -> str:
+    return CIRCUITPY_HINTS.get(platform.system(), "the CIRCUITPY drive")
+
+
+def find_circuitpy() -> Path | None:
+    """Locate a mounted CIRCUITPY drive, so the operator does not have to."""
+    candidates: list[Path] = []
+    system = platform.system()
+    if system == "Darwin":
+        candidates = [Path("/Volumes/CIRCUITPY")]
+    elif system == "Linux":
+        import os
+        user = os.environ.get("USER", "")
+        candidates = [Path(f"/media/{user}/CIRCUITPY"),
+                      Path(f"/run/media/{user}/CIRCUITPY"),
+                      Path("/media/CIRCUITPY")]
+    else:
+        candidates = [Path(f"{chr(letter)}:/") for letter in
+                      range(ord("D"), ord("K"))]
+    for path in candidates:
+        try:
+            if path.is_dir() and (path / "boot_out.txt").exists():
+                return path
+        except OSError:
+            continue
+    return None
 
 
 def _now() -> str:
@@ -217,16 +263,54 @@ def import_hid_log(client, path: str | Path, *, ingest_key: str,
 
 # -- Sentinel: serial listener --------------------------------------------
 
+def list_ports() -> list[str]:
+    """Candidate serial devices on this platform, best guess first.
+
+    Uses pyserial's enumeration when available — it is the only way to find
+    the port on Windows, and it gives better ordering everywhere.
+    """
+    try:
+        from serial.tools import list_ports as pyserial_ports  # type: ignore
+
+        found = [p.device for p in pyserial_ports.comports()]
+        if found:
+            return sorted(found)
+    except ImportError:
+        pass
+    ports: list[str] = []
+    for pattern in SERIAL_GLOBS.get(platform.system(), []):
+        ports.extend(sorted(glob.glob(pattern)))
+    return ports
+
+
 def find_port(explicit: str | None = None) -> str | None:
     if explicit:
         return explicit
-    for pattern in SERIAL_GLOBS:
-        matches = sorted(glob.glob(pattern))
-        if matches:
-            # The Sentinel exposes console + data; the data endpoint is the
-            # higher-numbered one.
-            return matches[-1]
-    return None
+    ports = list_ports()
+    if not ports:
+        return None
+    # The Sentinel exposes a console endpoint and a data endpoint. The data
+    # one enumerates second, so the higher-numbered device is the one that
+    # carries seals.
+    return ports[-1]
+
+
+def port_help() -> str:
+    """What to tell an operator when no port was found."""
+    system = platform.system()
+    ports = list_ports()
+    if ports:
+        return ("Found these serial devices but none responded: "
+                + ", ".join(ports)
+                + "\nPass --port to choose one explicitly.")
+    if system == "Windows":
+        return ("No serial devices found. Install pyserial (pip install "
+                "pyserial) so Windows COM ports can be enumerated, and check "
+                "the Pico appears in Device Manager.")
+    where = ", ".join(SERIAL_GLOBS.get(system, [])) or "the usual locations"
+    return (f"No serial devices found at {where}.\n"
+            f"Plug the Sentinel in and check it appears — on {system} it "
+            f"should show up within a second or two of connecting.")
 
 
 def _open_serial(port: str, baud: int = 115200):
@@ -249,8 +333,7 @@ def watch_sentinel(client, *, port: str | None = None, ingest_key: str,
     """Read seals from the token until interrupted."""
     resolved = find_port(port)
     if resolved is None:
-        raise RuntimeError("no serial port found — plug in the Sentinel, or "
-                           "pass --port /dev/ttyACM1")
+        raise RuntimeError(port_help())
     handle, is_pyserial = _open_serial(resolved)
     guard = guard or CounterGuard()
     log.info("listening for seals on %s", resolved)

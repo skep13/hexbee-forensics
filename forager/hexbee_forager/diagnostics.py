@@ -28,6 +28,8 @@ from .collectors import HAVE_PSUTIL, IS_WINDOWS, _event, _run
 if HAVE_PSUTIL:
     import psutil  # type: ignore
 
+IS_MACOS = platform.system() == "Darwin"
+
 # Thresholds. Deliberately conservative — a field kit that cries wolf gets
 # ignored.
 DISK_WARN_PCT = 90
@@ -87,6 +89,8 @@ def collect_resources() -> list[dict]:
 
 def _meminfo_native() -> dict:
     """psutil-free memory figures."""
+    if IS_MACOS:
+        return _meminfo_macos()
     if IS_WINDOWS:
         out = _run(["wmic", "OS", "get",
                     "FreePhysicalMemory,TotalVisibleMemorySize", "/format:list"])
@@ -121,6 +125,60 @@ def _meminfo_native() -> dict:
     return out
 
 
+def _meminfo_macos() -> dict:
+    """Memory figures from sysctl and vm_stat.
+
+    macOS has no /proc. 'Free' memory is also close to meaningless here —
+    the kernel deliberately uses everything for cache — so pressure is
+    computed the way macOS itself thinks about it: wired plus compressed
+    plus active, against the total.
+    """
+    total = 0
+    out = _run(["sysctl", "-n", "hw.memsize"])
+    if out.strip().isdigit():
+        total = int(out.strip())
+    if not total:
+        return {}
+
+    stats: dict[str, int] = {}
+    page_size = 4096
+    vm = _run(["vm_stat"])
+    header = re.search(r"page size of (\d+) bytes", vm)
+    if header:
+        page_size = int(header.group(1))
+    for line in vm.splitlines():
+        m = re.match(r'"?([A-Za-z][A-Za-z ,\-]+)"?:\s+(\d+)', line.strip())
+        if m:
+            stats[m.group(1).strip().lower()] = int(m.group(2)) * page_size
+
+    wired = stats.get("pages wired down", 0)
+    compressed = stats.get("pages occupied by compressor", 0)
+    active = stats.get("pages active", 0)
+    inactive = stats.get("pages inactive", 0)
+    free = stats.get("pages free", 0) + stats.get("pages speculative", 0)
+
+    used = wired + compressed + active
+    info = {
+        "memory_total": total,
+        # Inactive pages are reclaimable on demand, so they count as available.
+        "memory_available": free + inactive,
+        "memory_percent": round(100 * used / total, 1) if total else 0.0,
+        "memory_wired": wired,
+        "memory_compressed": compressed,
+    }
+
+    swap = _run(["sysctl", "-n", "vm.swapusage"])
+    m = re.search(r"total = ([\d.]+)M.*used = ([\d.]+)M", swap)
+    if m:
+        swap_total = float(m.group(1)) * 1024 * 1024
+        swap_used = float(m.group(2)) * 1024 * 1024
+        info["swap_total"] = int(swap_total)
+        info["swap_used"] = int(swap_used)
+        if swap_total:
+            info["swap_percent"] = round(100 * swap_used / swap_total, 1)
+    return info
+
+
 # -- temperature ----------------------------------------------------------
 
 def collect_thermal() -> list[dict]:
@@ -146,6 +204,27 @@ def collect_thermal() -> list[dict]:
                                          "celsius": round(entry.current, 1)})
         except Exception:
             pass
+
+    if not readings and IS_MACOS:
+        # Apple Silicon exposes thermals only through powermetrics, which
+        # needs root. Report the pressure level instead — it needs no
+        # privileges and is the number that actually matters.
+        level = _run(["pmset", "-g", "therm"])
+        m = re.search(r"CPU_Speed_Limit\s*=\s*(\d+)", level)
+        if m:
+            limit = int(m.group(1))
+            events = [_event("diagnostic_snapshot",
+                             {"kind": "thermal", "platform": "macos",
+                              "cpu_speed_limit_percent": limit,
+                              "note": "per-sensor temperatures need root on "
+                                      "macOS; speed limit is the useful proxy"})]
+            if limit < 100:
+                events.append(_alert(
+                    "temperature_high",
+                    f"CPU is thermally limited to {limit}% of full speed",
+                    cpu_speed_limit_percent=limit))
+            return events
+        return []
 
     if not readings:
         return []
@@ -252,6 +331,11 @@ def _smart_devices() -> list[str]:
     devices = [line.split()[0] for line in out.splitlines() if line.startswith("/dev/")]
     if devices:
         return devices
+    if IS_MACOS:
+        # Apple's internal NVMe does not answer SMART through smartctl; only
+        # attached external disks will appear.
+        return [f"/dev/disk{n}" for n in range(4)
+                if Path(f"/dev/disk{n}").exists()]
     return [f"/dev/{d}" for d in ("sda", "sdb", "nvme0")
             if Path(f"/dev/{d}").exists()]
 
@@ -259,8 +343,26 @@ def _smart_devices() -> list[str]:
 # -- services -------------------------------------------------------------
 
 def collect_services() -> list[dict]:
-    """Failed systemd units (Linux) or stopped auto-start services (Windows)."""
+    """Services that should be running but are not."""
     events = []
+    if IS_MACOS:
+        # launchctl's last-exit-status column: non-zero means it died.
+        failed = []
+        for line in _run(["launchctl", "list"]).splitlines()[1:]:
+            parts = line.split(None, 2)
+            if len(parts) == 3 and parts[1] not in ("0", "-"):
+                failed.append({"label": parts[2], "exit_status": parts[1]})
+        events.append(_event("diagnostic_snapshot",
+                             {"kind": "services", "platform": "macos",
+                              "failed_units": [f["label"] for f in failed[:40]],
+                              "count": len(failed)}))
+        for item in failed[:20]:
+            events.append(_alert("service_failed",
+                                 f"launchd job {item['label']} last exited "
+                                 f"with status {item['exit_status']}",
+                                 unit=item["label"],
+                                 exit_status=item["exit_status"]))
+        return events
     if IS_WINDOWS:
         out = _run(["sc", "query", "type=", "service", "state=", "inactive"])
         stopped = re.findall(r"SERVICE_NAME:\s*(\S+)", out)[:40]
@@ -325,9 +427,10 @@ def _safe_int(value) -> int | None:
 
 
 def collect_uptime() -> list[dict]:
+    import time
+
     payload = {"kind": "uptime", "platform": platform.system()}
     if HAVE_PSUTIL:
-        import time
         payload["uptime_seconds"] = int(time.time() - psutil.boot_time())
     elif Path("/proc/uptime").exists():
         try:
@@ -335,6 +438,10 @@ def collect_uptime() -> list[dict]:
                 Path("/proc/uptime").read_text().split()[0]))
         except (OSError, ValueError, IndexError):
             pass
+    elif IS_MACOS:
+        m = re.search(r"sec = (\d+)", _run(["sysctl", "-n", "kern.boottime"]))
+        if m:
+            payload["uptime_seconds"] = int(time.time()) - int(m.group(1))
     return [_event("diagnostic_snapshot", payload)]
 
 

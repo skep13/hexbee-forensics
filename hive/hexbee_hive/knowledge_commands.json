@@ -154,6 +154,22 @@
       ]
     },
     {
+      "id": "cmd-hexbee-hive-setup",
+      "title": "hexbee-hive setup",
+      "body": "guided first-time setup (start here)",
+      "commands": [
+        "hexbee-hive setup"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-doctor",
+      "title": "hexbee-hive doctor",
+      "body": "check what works on this machine and how to fix what doesn't\nOptions: -v, --verbose \u2014 also list everything that is already working",
+      "commands": [
+        "hexbee-hive doctor"
+      ]
+    },
+    {
       "id": "cmd-hexbee-hive-howto",
       "title": "hexbee-hive howto",
       "body": "ask how to use HexBee (grounded, works with or without a local model)\nArguments: QUESTION\nOptions: --list \u2014 list what the knowledge base covers",
@@ -511,6 +527,14 @@
       "body": "show YARA capability and ruleset location\nOptions: --yara-rules",
       "commands": [
         "hexbee-comb yara"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-comb-extract",
+      "title": "hexbee-comb extract",
+      "body": "pull files out of a disk image without mounting it (works on macOS and Windows too)\nArguments: IMAGE; OUT_DIR \u2014 where to write the recovered files\nOptions: --offset \u2014 partition start in sectors (default: the largest partition found); --allocated-only \u2014 skip deleted files (they are recovered by default)",
+      "commands": [
+        "hexbee-comb extract"
       ]
     },
     {

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ wf.situation }} — HexBee Hive{% endblock %}
+{% block content %}
+
+<p class="muted"><a href="/start">&larr; Start Here</a></p>
+
+<div class="page-head">
+  <div>
+    <h1 style="font-size:1.25rem">{{ wf.situation }}</h1>
+    <p class="sub">{{ wf.summary }}</p>
+  </div>
+</div>
+
+<div class="panel" style="display:flex;gap:1.4rem;flex-wrap:wrap">
+  <div><span class="l">Time</span><br><strong>{{ wf.time }}</strong></div>
+  <div><span class="l">Mode</span><br><strong>{{ wf.mode }}</strong></div>
+  <div><span class="l">Steps</span><br><strong>{{ wf.steps|length }}</strong></div>
+  {% if wf.needs %}
+  <div style="flex:1;min-width:14rem"><span class="l">You need</span><br>
+    <strong>{{ wf.needs|join(', ') }}</strong></div>
+  {% endif %}
+</div>
+
+{% for step in wf.steps %}
+<div class="panel">
+  <h2 style="margin-top:0">{{ loop.index }}. {{ step.title }}</h2>
+  <p><strong class="muted">Why:</strong> {{ step.why }}</p>
+  {% if step.note %}
+  <p class="muted" style="border-left:3px solid var(--honey);padding-left:.7rem">
+    {{ step.note }}</p>
+  {% endif %}
+  {% for command in step.commands %}
+  <div class="cmd"><code>{{ command }}</code>
+    <button class="btn btn-sm copy" data-copy="{{ command }}">copy</button></div>
+  {% endfor %}
+  {% if step.where %}
+  <p style="margin-bottom:0"><a class="btn btn-sm" href="{{ step.where }}">
+    Do this in the dashboard &rarr;</a></p>
+  {% endif %}
+</div>
+{% endfor %}
+
+<div class="panel">
+  <h2 style="margin-top:0">Stuck?</h2>
+  <p class="muted" style="margin-top:0">Ask in plain English — the assistant
+    answers from HexBee's own manual, so it gives real commands rather than
+    plausible-looking ones.</p>
+  <a class="btn btn-primary" href="/assistant">Ask a question</a>
+  <a class="btn" href="/start">Other situations</a>
+</div>
+{% endblock %}

@@ -296,6 +296,10 @@ tr.hl td:first-child{box-shadow:inset 3px 0 0 var(--honey)}
       <a class="nav-link {{ 'active' if request.path == href or (href != '/' and request.path.startswith(href)) else '' }}" href="{{ href }}">{{ caller() }}<span>{{ label }}</span></a>
     {% endmacro %}
     <nav class="nav-group">
+      <div class="lbl">Get Started</div>
+      {% call nav('/start', 'Start Here') %}<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 8l6 4-6 4z"/></svg>{% endcall %}
+    </nav>
+    <nav class="nav-group">
       <div class="lbl">Investigate</div>
       {% call nav('/', 'Dashboard') %}<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>{% endcall %}
       {% call nav('/incidents', 'Incidents') %}<svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r=".6"/></svg>{% endcall %}

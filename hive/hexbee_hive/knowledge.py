@@ -65,12 +65,18 @@ class Doc:
 # auto-extracted command docs are supporting detail. Without this weighting the
 # command docs win on length normalisation alone — they are one line long — and
 # the operator gets a flag list instead of a procedure.
-KIND_WEIGHT = {"recipe": 1.7, "concept": 1.45, "reference": 1.25, "command": 1.0}
+# Workflows sit just below recipes on purpose. Both answer usage questions,
+# but a workflow is a whole procedure and a recipe is one task — so "what
+# command exports a bundle" should get the command, while "I need to hand
+# evidence to someone" gets the procedure. The keywords carry situation
+# phrasing to the workflows; this weighting keeps precise questions precise.
+KIND_WEIGHT = {"recipe": 1.7, "workflow": 1.6, "concept": 1.45,
+               "reference": 1.25, "command": 1.0}
 
 # Only these kinds decide whether a question is about *using HexBee* at all.
 # Command docs are full of ordinary words ("host", "found", "device"), so
 # letting them vote sends evidence questions to the manual.
-ROUTING_KINDS = ("recipe", "concept")
+ROUTING_KINDS = ("recipe", "workflow", "concept")
 
 # Operator vocabulary that does not appear in the text it should match.
 # Keeping the aliases in one table rather than scattered through the recipes
@@ -80,9 +86,10 @@ KEYWORDS: dict[str, list[str]] = {
                           "flash drive", "disk image", "seized media",
                           "mount image", "dd image", "examine drive",
                           "analyse disk", "analyze disk", "inspect drive"],
-    "recipe-export-bundle": ["export bundle", "signed bundle", "handover",
-                             "hand over evidence", "package evidence",
-                             "chain of custody export", "give evidence to"],
+    # "handing evidence over" belongs to the wf-handover workflow, which walks
+    # the whole procedure; this recipe is the single export command.
+    "recipe-export-bundle": ["export bundle", "signed bundle",
+                             "chain of custody export"],
     "recipe-start-engagement": ["authorise", "authorize", "authorisation",
                                 "in scope", "add scope", "target range",
                                 "permission to test", "rules of engagement",
@@ -981,6 +988,90 @@ def _cli_docs_from_parser(prog: str, parser) -> list[Doc]:
     return docs
 
 
+def _workflow_docs() -> list[Doc]:
+    """The Start Here guided jobs, so asking gives the same answer as clicking."""
+    from .workflows import as_knowledge_docs
+
+    return as_knowledge_docs()
+
+
+# Plain-English definitions. A beginner asking "what is a case" needs an
+# answer, and every forensics tool assumes you already know.
+GLOSSARY = [
+    ("event", "One thing that was observed and recorded — a USB stick being "
+              "plugged in, a file being found, a login. The smallest unit of "
+              "evidence in HexBee. Events are never edited or deleted."),
+    ("incident", "A group of related events that look like one thing "
+                 "happening. HexBee creates these automatically: when "
+                 "something serious is recorded, the events around it on the "
+                 "same machine get pulled in, so you see the sequence rather "
+                 "than isolated records."),
+    ("case", "The folder for one job. Cases hold incidents, your notes, and "
+             "produce the final report. You create a case first, before you "
+             "start looking at anything."),
+    ("evidence chain", "The tamper-evident log. Every record is sealed with a "
+                       "fingerprint of the record before it, so changing "
+                       "anything after the fact breaks the seal visibly and "
+                       "permanently. This is what lets you show the evidence "
+                       "has not been altered."),
+    ("hash", "A short fingerprint of a file. Change one byte of the file and "
+             "the fingerprint changes completely. It is how you prove a file "
+             "is the same file you found, hours or years later."),
+    ("chain of custody", "The record of who handled evidence, when, and what "
+                         "they did with it. HexBee keeps this automatically in "
+                         "the audit log, which is included in exports."),
+    ("IOC", "Indicator of Compromise — a specific thing known to be bad: a "
+            "file fingerprint, a domain, an IP address. HexBee checks every "
+            "incoming record against your list and raises the alarm on a "
+            "match."),
+    ("ATT&CK", "A public catalogue, maintained by MITRE, of the techniques "
+               "attackers actually use. Labelling findings with it lets you "
+               "describe what happened in language other security people "
+               "already share, and clients expect to see it in reports."),
+    ("severity", "How serious a record is, from 0 (routine) to 3 (critical). "
+                 "Anything 2 or above automatically opens an incident."),
+    ("scope", "The list of systems you are authorised to test. HexBee refuses "
+              "to run active tools against anything not on it, and records "
+              "the refusal — which proves you stayed inside your permission."),
+    ("triage", "A first quick look, to work out what deserves proper "
+               "attention. Not the full investigation."),
+    ("live response", "Collecting evidence from a computer while it is still "
+                      "running, before anything is lost by switching it off."),
+    ("acquisition", "Making a copy of evidence — a disk image, or a copy of "
+                    "memory — so you work from the copy and leave the "
+                    "original untouched."),
+    ("write blocker", "Hardware that lets a computer read a drive but "
+                      "physically prevents it writing. It is the proper way "
+                      "to examine a drive without changing it."),
+    ("anchor", "A signed receipt of what the evidence log looked like at a "
+               "moment in time. Save one somewhere separate and you can prove "
+               "later that the log has not been rewritten since."),
+    ("YARA", "A way of describing what a piece of malware looks like, so "
+             "files can be checked against a library of known patterns."),
+    ("air-gapped", "Not connected to any network. HexBee is built to work "
+                   "this way — everything except downloading threat feeds "
+                   "runs with no internet at all."),
+]
+
+
+def _glossary_docs() -> list[Doc]:
+    """One document per term, so a definition can be retrieved on its own."""
+    docs = []
+    for term, definition in GLOSSARY:
+        docs.append(Doc(
+            id=f"glossary-{term.lower().replace(' ', '-').replace('&', '')}",
+            title=f"What is a {term}?" if term[0].islower() else f"What is {term}?",
+            body=definition,
+            kind="concept",
+            source="glossary",
+            # The first keyword is the term itself — `define()` keys on it.
+            keywords=[term.lower(), f"what is {term}",
+                      f"what does {term} mean", f"define {term}",
+                      f"explain {term}", "glossary", "definition"],
+        ))
+    return docs
+
+
 def _snapshot_docs() -> list[Doc]:
     """CLI documents produced by scripts/build_knowledge.py.
 
@@ -1010,11 +1101,28 @@ def _snapshot_docs() -> list[Doc]:
 
 _TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9_.\-]*")
 
+# "what is a case", "what does IOC mean", "define chain of custody"
+_DEFINE_RE = re.compile(
+    r"^(?:what(?:'s| is| are)?|whats)\s+(?:a|an|the)?\s*(?P<term>.+?)"
+    r"(?:\s+mean(?:s)?)?[?.]?$"
+    r"|^(?:what does)\s+(?P<term2>.+?)\s+mean[?.]?$"
+    r"|^(?:define|explain)\s+(?P<term3>.+?)[?.]?$",
+    re.I)
+
 # Words that carry no signal in a corpus that is entirely about HexBee.
 _STOP = {
+    # Articles, prepositions, and the conversational filler that surrounds a
+    # question. These match everything and discriminate nothing — "me" alone
+    # was enough to match "Someone handed me a USB stick" against "write me a
+    # poem".
     "the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "with",
-    "is", "are", "be", "it", "that", "this", "how", "do", "i", "you", "my",
-    "can", "what", "when", "which", "from", "at", "by", "as", "if", "not",
+    "is", "are", "be", "was", "were", "it", "its", "that", "this", "these",
+    "those", "how", "do", "does", "did", "i", "you", "your", "my", "me",
+    "we", "us", "our", "they", "them", "their", "can", "what", "when",
+    "which", "who", "from", "at", "by", "as", "if", "not", "have", "has",
+    "had", "get", "got", "want", "need", "please", "any", "some", "there",
+    "here", "then", "than", "just", "about", "will", "would", "should",
+    "could", "into", "am", "been", "being",
     "hexbee",
 }
 
@@ -1107,6 +1215,30 @@ class Knowledge:
         scored.sort(key=lambda pair: pair[1], reverse=True)
         return scored[:k]
 
+    def define(self, query: str) -> Doc | None:
+        """Answer a "what is X" question by looking X up directly.
+
+        A glossary is a keyed lookup, not a search problem. BM25 handles it
+        badly for exactly the terms that matter most: "case" appears in
+        almost every document in this corpus, so its IDF is near zero and
+        "what is a case" scores below the noise floor. Matching the term
+        itself sidesteps that entirely.
+        """
+        match = _DEFINE_RE.match(query.strip())
+        if not match:
+            return None
+        term = (match.group("term") or match.group("term2")
+                or match.group("term3") or "").strip().strip("?.\"' ").lower()
+        if not term:
+            return None
+        # Longest term first, so "chain of custody" wins over "chain".
+        for doc in sorted((d for d in self.docs if d.source == "glossary"),
+                          key=lambda d: -len(d.keywords[0] if d.keywords else "")):
+            name = (doc.keywords[0] if doc.keywords else "").lower()
+            if term == name or term == f"a {name}" or term == f"an {name}":
+                return doc
+        return None
+
     def routing_score(self, query: str) -> float:
         """How confidently this looks like a question about *using* HexBee.
 
@@ -1134,10 +1266,12 @@ class Knowledge:
         if score < min_score:
             return False
         terms = tokenize(query)
-        if len(set(terms)) < 3:
-            return True
-        index = self.docs.index(doc)
-        return self._covers(index, terms) >= 2
+        if not terms:
+            return False
+        # Two matching terms, or all of them for a one-word query. A single
+        # incidental word in common is a coincidence, not an answer.
+        needed = min(2, len(set(terms)))
+        return self._covers(self.docs.index(doc), terms) >= needed
 
     def relevant(self, query: str, k: int = 3,
                  min_score: float = 5.0) -> list[Doc]:
@@ -1147,8 +1281,12 @@ class Knowledge:
         and the sources cited back to the operator — if those two disagree,
         the citation is a lie.
         """
-        return [doc for doc, score in self.search(query, k)
+        defined = self.define(query)
+        docs = [doc for doc, score in self.search(query, k)
                 if self._accept(query, doc, score, min_score)]
+        if defined is not None and defined not in docs:
+            docs.insert(0, defined)
+        return docs[:k]
 
     def reference_for(self, query: str, k: int = 3,
                       min_score: float = 5.0) -> str:
@@ -1163,6 +1301,9 @@ class Knowledge:
         return "\n\n".join(doc.render() for doc in docs) if docs else ""
 
     def best(self, query: str, min_score: float = 5.0) -> Doc | None:
+        defined = self.define(query)
+        if defined is not None:
+            return defined
         hits = self.search(query, 1)
         if hits and self._accept(query, hits[0][0], hits[0][1], min_score):
             return hits[0][0]
@@ -1175,15 +1316,19 @@ _CACHE: Knowledge | None = None
 def build_corpus() -> list[Doc]:
     """Curated recipes plus everything extractable from the running code."""
     docs = list(RECIPES)
-    for producer in (_event_type_docs, _attack_docs, _config_docs,
-                     _snapshot_docs):
+    for producer in (_workflow_docs, _glossary_docs, _event_type_docs,
+                     _attack_docs, _config_docs, _snapshot_docs):
         try:
             docs.extend(producer())
         except Exception:
             # A knowledge source failing must never take down the assistant.
             continue
+    # Aliases from the table are merged in, never substituted — workflow and
+    # glossary documents carry their own and would otherwise be wiped.
     for doc in docs:
-        doc.keywords = KEYWORDS.get(doc.id, [])
+        extra = KEYWORDS.get(doc.id, [])
+        if extra:
+            doc.keywords = list(dict.fromkeys(doc.keywords + extra))
     return docs
 
 

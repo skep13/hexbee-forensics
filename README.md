@@ -53,6 +53,19 @@ Target Computer ──USB──> Scout (ESP32-S3 agent)
 - Plus the platform core: incident **correlation**, **timeline** reconstruction,
   **case management**, **IOC** matching, RBAC, search, and branded reports.
 
+## New here?
+
+```bash
+./install.sh          # macOS or Linux; explains what it installs and why
+hexbee-hive setup     # guided first run
+hexbee-hive web       # then open http://localhost:8080 and click "Start Here"
+```
+
+No forensics experience needed — [GETTING-STARTED.md](GETTING-STARTED.md)
+assumes none. `hexbee-hive doctor` tells you what works on your machine and
+how to fix what doesn't; `hexbee-hive howto "..."` answers questions from the
+built-in manual.
+
 ## Repository layout
 
 | Path | What it is |

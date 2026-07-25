@@ -1026,6 +1026,46 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
         remove_ioc(db, ioc_id, g.user["username"])
         return redirect(url_for("iocs_page"))
 
+    @app.get("/start")
+    @require("viewer", api=False)
+    def start_page():
+        """The beginner's landing page: situations, not features."""
+        from . import doctor, workflows
+
+        return render_template("start.html", user=g.user,
+                               workflows=workflows.WORKFLOWS,
+                               ready=doctor.run(cfg, db).ready)
+
+    @app.get("/start/<workflow_id>")
+    @require("viewer", api=False)
+    def workflow_page(workflow_id: str):
+        from . import workflows
+
+        wf = workflows.by_id(workflow_id)
+        if wf is None:
+            return render_template("error.html", user=g.user,
+                                   message="No such guide"), 404
+        return render_template("workflow.html", user=g.user, wf=wf)
+
+    @app.get("/glossary")
+    @require("viewer", api=False)
+    def glossary_page():
+        from .knowledge import GLOSSARY
+
+        return render_template("glossary.html", user=g.user, glossary=GLOSSARY)
+
+    @app.get("/api/v1/doctor")
+    @require("administrator")
+    def api_doctor():
+        """Machine-readable capability report."""
+        from . import doctor
+
+        report = doctor.run(cfg, db)
+        return jsonify(ready=report.ready, system=doctor.SYSTEM, checks=[
+            {"name": c.name, "status": c.status, "what": c.what,
+             "detail": c.detail, "fix": c.fix, "enables": c.enables}
+            for c in report.checks])
+
     @app.get("/attack")
     @require("viewer", api=False)
     def attack_page():

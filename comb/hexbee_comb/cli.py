@@ -80,6 +80,57 @@ def cmd_yara(args) -> int:
     return 0 if info["available"] else 1
 
 
+def cmd_extract(args) -> int:
+    """Pull files out of a disk image without mounting it.
+
+    Mounting an image needs a loop device, which only Linux has. This route
+    works everywhere — and it never lets the host operating system touch the
+    evidence, which is the safer choice even on Linux.
+    """
+    from . import tsk
+    from .diskimage import parse_partitions
+
+    image = Path(args.image)
+    if not image.is_file():
+        print(f"No such image: {image}", file=sys.stderr)
+        return 1
+    if not tsk.recover_available():
+        print("Sleuth Kit's tsk_recover is not installed.\n"
+              "  macOS:  brew install sleuthkit\n"
+              "  Debian: sudo apt install sleuthkit", file=sys.stderr)
+        return 1
+
+    offset = args.offset
+    if offset is None:
+        parts = parse_partitions(str(image))
+        if not parts:
+            offset = 0
+            print("No partition table found — treating the image as a single "
+                  "filesystem.")
+        else:
+            print(f"{'#':<3} {'scheme':<6} {'start LBA':<12} {'sectors':<12} type")
+            for p in parts:
+                print(f"{p.index:<3} {p.scheme:<6} {p.start_lba:<12} "
+                      f"{p.sectors:<12} {p.type_name}")
+            biggest = max(parts, key=lambda p: p.sectors)
+            offset = biggest.start_lba
+            print(f"\nUsing partition {biggest.index} (the largest) at sector "
+                  f"{offset}. Pass --offset to choose a different one.")
+
+    print(f"\nExtracting from {image} …")
+    try:
+        result = tsk.recover(str(image), args.out_dir, sector_offset=offset,
+                             allocated_only=args.allocated_only)
+    except RuntimeError as exc:
+        print(f"{exc}", file=sys.stderr)
+        return 1
+
+    print(f"Recovered {result['files']} file(s) into {result['output_dir']}"
+          + (" (deleted files included)" if result["deleted_included"] else ""))
+    print(f"\nNow scan the extraction:\n  hexbee-comb scan {result['output_dir']}")
+    return 0
+
+
 def cmd_carve(args) -> int:
     from .carver import carve
 
@@ -154,6 +205,18 @@ def main(argv: list[str] | None = None) -> int:
     y = sub.add_parser("yara", help="show YARA capability and ruleset location")
     y.add_argument("--yara-rules")
     y.set_defaults(fn=cmd_yara)
+
+    ex = sub.add_parser("extract", help="pull files out of a disk image "
+                                        "without mounting it (works on macOS "
+                                        "and Windows too)")
+    ex.add_argument("image")
+    ex.add_argument("out_dir", help="where to write the recovered files")
+    ex.add_argument("--offset", type=int,
+                    help="partition start in sectors (default: the largest "
+                         "partition found)")
+    ex.add_argument("--allocated-only", action="store_true",
+                    help="skip deleted files (they are recovered by default)")
+    ex.set_defaults(fn=cmd_extract)
 
     c = sub.add_parser("carve", help="carve files out of a raw image")
     c.add_argument("image")
