@@ -1,0 +1,629 @@
+{
+  "generated_by": "scripts/build_knowledge.py",
+  "commands": [
+    {
+      "id": "cmd-hexbee-hive-init",
+      "title": "hexbee-hive init",
+      "body": "create/upgrade the database",
+      "commands": [
+        "hexbee-hive init"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-engine",
+      "title": "hexbee-hive engine",
+      "body": "run the MQTT ingest engine",
+      "commands": [
+        "hexbee-hive engine"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-web",
+      "title": "hexbee-hive web",
+      "body": "run the dashboard/API server",
+      "commands": [
+        "hexbee-hive web"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-verify",
+      "title": "hexbee-hive verify",
+      "body": "verify the evidence hash chain",
+      "commands": [
+        "hexbee-hive verify"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-correlate",
+      "title": "hexbee-hive correlate",
+      "body": "backfill incident correlation",
+      "commands": [
+        "hexbee-hive correlate"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-user-add",
+      "title": "hexbee-hive user add",
+      "body": "Arguments: USERNAME; ROLE {administrator|investigator|viewer}",
+      "commands": [
+        "hexbee-hive user add"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-user-disable",
+      "title": "hexbee-hive user disable",
+      "body": "Arguments: USERNAME",
+      "commands": [
+        "hexbee-hive user disable"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-report",
+      "title": "hexbee-hive report",
+      "body": "generate a case report\nArguments: CASE_ID\nOptions: --format; -o, --output",
+      "commands": [
+        "hexbee-hive report"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-anchor",
+      "title": "hexbee-hive anchor",
+      "body": "print a signed chain-anchor receipt",
+      "commands": [
+        "hexbee-hive anchor"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-export",
+      "title": "hexbee-hive export",
+      "body": "write a signed evidence bundle for a case\nArguments: CASE_ID",
+      "commands": [
+        "hexbee-hive export"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-verify-bundle",
+      "title": "hexbee-hive verify-bundle",
+      "body": "verify a signed evidence bundle offline\nArguments: BUNDLE_DIR",
+      "commands": [
+        "hexbee-hive verify-bundle"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-security-check",
+      "title": "hexbee-hive security-check",
+      "body": "report security posture",
+      "commands": [
+        "hexbee-hive security-check"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-syslog",
+      "title": "hexbee-hive syslog",
+      "body": "run the syslog receiver + anomaly engine\nOptions: --host; --port \u2014 514 needs privileges; 5514 does not",
+      "commands": [
+        "hexbee-hive syslog"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-sync-intel",
+      "title": "hexbee-hive sync-intel",
+      "body": "pre-deployment: download threat intel feeds\nArguments: FEEDS \u2014 feed names (default: the small 'recent' set)\nOptions: --max-rows \u2014 per-feed row cap (protects the SD card and lookup time); --list \u2014 list known feeds and exit",
+      "commands": [
+        "hexbee-hive sync-intel"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-intel-status",
+      "title": "hexbee-hive intel-status",
+      "body": "local threat intel database status",
+      "commands": [
+        "hexbee-hive intel-status"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-scope-list",
+      "title": "hexbee-hive scope list",
+      "body": "",
+      "commands": [
+        "hexbee-hive scope list"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-scope-add",
+      "title": "hexbee-hive scope add",
+      "body": "Arguments: KIND {cidr|host|domain}; VALUE\nOptions: --auth-ref; --starts; --ends; --note",
+      "commands": [
+        "hexbee-hive scope add"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-scope-del",
+      "title": "hexbee-hive scope del",
+      "body": "Arguments: ID",
+      "commands": [
+        "hexbee-hive scope del"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-scope-check",
+      "title": "hexbee-hive scope check",
+      "body": "Arguments: TARGET",
+      "commands": [
+        "hexbee-hive scope check"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-howto",
+      "title": "hexbee-hive howto",
+      "body": "ask how to use HexBee (grounded, works with or without a local model)\nArguments: QUESTION\nOptions: --list \u2014 list what the knowledge base covers",
+      "commands": [
+        "hexbee-hive howto"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-attack-backfill",
+      "title": "hexbee-hive attack backfill",
+      "body": "tag events that have no techniques yet\nOptions: --bundle \u2014 path to an offline ATT&CK STIX bundle",
+      "commands": [
+        "hexbee-hive attack backfill"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-hive-attack-coverage",
+      "title": "hexbee-hive attack coverage",
+      "body": "tactic/technique breakdown\nOptions: --case",
+      "commands": [
+        "hexbee-hive attack coverage"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-connect",
+      "title": "hexbee-queen connect",
+      "body": "log in to a Hive\nArguments: URL\nOptions: -u, --username; --ingest-key \u2014 save the shared ingest key so active tools can write findings back",
+      "commands": [
+        "hexbee-queen connect"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-status",
+      "title": "hexbee-queen status",
+      "body": "Hive overview",
+      "commands": [
+        "hexbee-queen status"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-incidents",
+      "title": "hexbee-queen incidents",
+      "body": "list incidents\nOptions: --status",
+      "commands": [
+        "hexbee-queen incidents"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-incident",
+      "title": "hexbee-queen incident",
+      "body": "show one incident with timeline\nArguments: ID",
+      "commands": [
+        "hexbee-queen incident"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-case-show",
+      "title": "hexbee-queen case show",
+      "body": "Arguments: ID",
+      "commands": [
+        "hexbee-queen case show"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-case-new",
+      "title": "hexbee-queen case new",
+      "body": "Arguments: TITLE\nOptions: -d, --description",
+      "commands": [
+        "hexbee-queen case new"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-case-note",
+      "title": "hexbee-queen case note",
+      "body": "Arguments: ID; BODY",
+      "commands": [
+        "hexbee-queen case note"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-case-status",
+      "title": "hexbee-queen case status",
+      "body": "Arguments: ID; STATUS {open|active|closed}",
+      "commands": [
+        "hexbee-queen case status"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-cases",
+      "title": "hexbee-queen cases",
+      "body": "list cases",
+      "commands": [
+        "hexbee-queen cases"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-assign",
+      "title": "hexbee-queen assign",
+      "body": "assign incident to case\nArguments: INCIDENT_ID; CASE_ID",
+      "commands": [
+        "hexbee-queen assign"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-search",
+      "title": "hexbee-queen search",
+      "body": "search evidence\nOptions: --text; --device; --event-type; --tag; --since; --until; --limit",
+      "commands": [
+        "hexbee-queen search"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-tag",
+      "title": "hexbee-queen tag",
+      "body": "tag an event\nArguments: EVENT_ID; TAG",
+      "commands": [
+        "hexbee-queen tag"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-report",
+      "title": "hexbee-queen report",
+      "body": "pull a case report\nArguments: CASE_ID\nOptions: -f, --format; -o, --output",
+      "commands": [
+        "hexbee-queen report"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-ioc-list",
+      "title": "hexbee-queen ioc list",
+      "body": "",
+      "commands": [
+        "hexbee-queen ioc list"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-ioc-add",
+      "title": "hexbee-queen ioc add",
+      "body": "Arguments: KIND {sha256|filename|ip|domain|substring}; VALUE\nOptions: -n, --note",
+      "commands": [
+        "hexbee-queen ioc add"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-ioc-del",
+      "title": "hexbee-queen ioc del",
+      "body": "Arguments: ID",
+      "commands": [
+        "hexbee-queen ioc del"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-ioc-hits",
+      "title": "hexbee-queen ioc hits",
+      "body": "Options: --limit",
+      "commands": [
+        "hexbee-queen ioc hits"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-ai-ask",
+      "title": "hexbee-queen ai ask",
+      "body": "Arguments: QUESTION\nOptions: --case \u2014 scope to one case",
+      "commands": [
+        "hexbee-queen ai ask"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-ai-how",
+      "title": "hexbee-queen ai how",
+      "body": "how do I use HexBee? (grounded answer)\nArguments: QUESTION",
+      "commands": [
+        "hexbee-queen ai how"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-ai-summarize",
+      "title": "hexbee-queen ai summarize",
+      "body": "Arguments: CASE_ID",
+      "commands": [
+        "hexbee-queen ai summarize"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-verify",
+      "title": "hexbee-queen verify",
+      "body": "verify evidence hash chain",
+      "commands": [
+        "hexbee-queen verify"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-anchor",
+      "title": "hexbee-queen anchor",
+      "body": "get a signed chain-anchor receipt\nOptions: -o, --output \u2014 save the anchor JSON to a file",
+      "commands": [
+        "hexbee-queen anchor"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-anchor-verify",
+      "title": "hexbee-queen anchor-verify",
+      "body": "verify a saved anchor against the Hive\nArguments: FILE",
+      "commands": [
+        "hexbee-queen anchor-verify"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-export",
+      "title": "hexbee-queen export",
+      "body": "create a signed evidence bundle for a case\nArguments: CASE_ID",
+      "commands": [
+        "hexbee-queen export"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-scope-list",
+      "title": "hexbee-queen scope list",
+      "body": "Options: --case",
+      "commands": [
+        "hexbee-queen scope list"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-scope-add",
+      "title": "hexbee-queen scope add",
+      "body": "Arguments: KIND {cidr|host|domain}; VALUE\nOptions: --auth-ref \u2014 client authorisation reference; --starts \u2014 UTC ISO-8601, e.g. 2026-08-01T09:00:00Z; --ends; --case; --note",
+      "commands": [
+        "hexbee-queen scope add"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-scope-del",
+      "title": "hexbee-queen scope del",
+      "body": "Arguments: ID",
+      "commands": [
+        "hexbee-queen scope del"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-scope-check",
+      "title": "hexbee-queen scope check",
+      "body": "Arguments: TARGET\nOptions: --case",
+      "commands": [
+        "hexbee-queen scope check"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-recon",
+      "title": "hexbee-queen recon",
+      "body": "scope-gated nmap sweep into the case\nArguments: PROFILE {quick|sweep|vuln|discover}; TARGET \u2014 host, hostname, or CIDR range\nOptions: --case; --key \u2014 Hive ingest key (else env/session); --dry-run \u2014 resolve scope only; do not run nmap",
+      "commands": [
+        "hexbee-queen recon"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-responder",
+      "title": "hexbee-queen responder",
+      "body": "import Responder captures into the chain\nOptions: --log-dir \u2014 Responder Logs/ directory; --watch \u2014 follow continuously; --interval; --import-existing \u2014 with --watch, also import captures already on disk; --include-material \u2014 store the full hash/password, not just a fingerprint; --case; --key",
+      "commands": [
+        "hexbee-queen responder"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-bloodhound",
+      "title": "hexbee-queen bloodhound",
+      "body": "import BloodHound collector output\nArguments: PATH \u2014 collector .json, .zip, or directory\nOptions: --case; --key",
+      "commands": [
+        "hexbee-queen bloodhound"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-pivot-generate",
+      "title": "hexbee-queen pivot generate",
+      "body": "render the Pi's autossh unit + setup script\nArguments: QUEEN_HOST \u2014 address the Pi should dial back to\nOptions: -o, --out \u2014 output directory; --queen-user; --queen-ssh-port; --pi-user; --port \u2014 reverse-forward port",
+      "commands": [
+        "hexbee-queen pivot generate"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-pivot-status",
+      "title": "hexbee-queen pivot status",
+      "body": "Options: --port",
+      "commands": [
+        "hexbee-queen pivot status"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-pivot-connect",
+      "title": "hexbee-queen pivot connect",
+      "body": "Options: --port; --user; --case; --note; --key; --hive-pause \u2014 stop the Hive dashboard during the session to free ~150 MB on the Pi (ingest keeps running)",
+      "commands": [
+        "hexbee-queen pivot connect"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-pico-seal",
+      "title": "hexbee-queen pico seal",
+      "body": "listen for evidence seals from the Sentinel\nOptions: --port \u2014 serial device (default: autodetect); --token-key \u2014 path to the token's key file; --case; --operator; --witness \u2014 name of the witness present at sealing; --no-anchor \u2014 do not request a signed chain anchor per seal; --key \u2014 Hive ingest key",
+      "commands": [
+        "hexbee-queen pico seal"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-pico-hid",
+      "title": "hexbee-queen pico hid",
+      "body": "import the Stinger's deploy.log\nArguments: LOG \u2014 path to deploy.log on the Pico's drive\nOptions: --case; --operator; --target \u2014 hostname the payload was deployed against; --include-disarmed; --key",
+      "commands": [
+        "hexbee-queen pico hid"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-pico-provision",
+      "title": "hexbee-queen pico provision",
+      "body": "generate a Sentinel token key\nOptions: -o, --out",
+      "commands": [
+        "hexbee-queen pico provision"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-engagement-report",
+      "title": "hexbee-queen engagement report",
+      "body": "ATT&CK-mapped pentest report (HTML/PDF)\nArguments: CASE_ID\nOptions: -o, --output; --pdf \u2014 also render a PDF; --no-ai \u2014 skip Hive Mind narration (faster, no model needed)",
+      "commands": [
+        "hexbee-queen engagement report"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-mode",
+      "title": "hexbee-queen mode",
+      "body": "set a case's operating mode\nArguments: CASE_ID; MODE {ir|pentest|diagnostics}",
+      "commands": [
+        "hexbee-queen mode"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-queen-intel",
+      "title": "hexbee-queen intel",
+      "body": "local threat intel status",
+      "commands": [
+        "hexbee-queen intel"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-comb-scan",
+      "title": "hexbee-comb scan",
+      "body": "inventory + artifacts from a directory/mount\nArguments: TARGET\nOptions: -o, --output \u2014 write HTML report here; --json \u2014 write full JSON results here; --max-files; --hive \u2014 Hive base URL to upload findings to; --key \u2014 Hive ingest key; --device \u2014 device name for uploaded events; --yara-rules \u2014 YARA rules file or directory (else HEXBEE_YARA_RULES, else the standard kit locations); --no-yara \u2014 skip YARA matching",
+      "commands": [
+        "hexbee-comb scan"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-comb-yara",
+      "title": "hexbee-comb yara",
+      "body": "show YARA capability and ruleset location\nOptions: --yara-rules",
+      "commands": [
+        "hexbee-comb yara"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-comb-carve",
+      "title": "hexbee-comb carve",
+      "body": "carve files out of a raw image\nArguments: IMAGE; OUT_DIR",
+      "commands": [
+        "hexbee-comb carve"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-comb-partitions",
+      "title": "hexbee-comb partitions",
+      "body": "show MBR/GPT partition table\nArguments: IMAGE",
+      "commands": [
+        "hexbee-comb partitions"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-comb-tsk-ls",
+      "title": "hexbee-comb tsk-ls",
+      "body": "list files in an image via Sleuth Kit\nArguments: IMAGE\nOptions: --offset \u2014 partition start in sectors",
+      "commands": [
+        "hexbee-comb tsk-ls"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-comb-serve",
+      "title": "hexbee-comb serve",
+      "body": "point-and-click web UI (no commands)\nOptions: --host; --port; --hive \u2014 prefill Hive URL in the UI; --key \u2014 prefill Hive ingest key in the UI",
+      "commands": [
+        "hexbee-comb serve"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-forager-collect",
+      "title": "hexbee-forager collect",
+      "body": "one-shot triage collection\nOptions: -o, --output \u2014 write events to a JSON file instead of shipping; --mode \u2014 forensic (default) = live-response artifacts; diagnostics = SMART, thermals, RAM/swap, failed units, disk fill, top consumers",
+      "commands": [
+        "hexbee-forager collect"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-forager-watch",
+      "title": "hexbee-forager watch",
+      "body": "continuous monitoring\nOptions: --interval \u2014 seconds between samples; --full-every \u2014 full sweep every N cycles; --mode \u2014 diagnostics gives continuous health monitoring (try --mode diagnostics --interval 300)",
+      "commands": [
+        "hexbee-forager watch"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-forager-memory",
+      "title": "hexbee-forager memory",
+      "body": "acquire physical memory to an external disk\nArguments: DEST \u2014 destination directory \u2014 use the external HDD\nOptions: --method; --case \u2014 Hive case id to record against; --note \u2014 free-text note stored with the chain entry; --status \u2014 report what acquisition would use, and stop; --dry-run \u2014 run the prechecks only (space, tooling, privileges)",
+      "commands": [
+        "hexbee-forager memory"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-forager-status",
+      "title": "hexbee-forager status",
+      "body": "show config and spool backlog",
+      "commands": [
+        "hexbee-forager status"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-forager-submit",
+      "title": "hexbee-forager submit",
+      "body": "upload saved collection JSON files to the Hive\nArguments: FILES \u2014 JSON files from `collect --output`",
+      "commands": [
+        "hexbee-forager submit"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-forager-config",
+      "title": "hexbee-forager config",
+      "body": "write a config file for unattended runs\nOptions: --hive; --key; --path \u2014 config file path (default ~/.hexbee-forager.json)",
+      "commands": [
+        "hexbee-forager config"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-netmon-run",
+      "title": "hexbee-netmon run",
+      "body": "run a monitoring mode\nOptions: --mode; --iface \u2014 interface to capture on (default: all); --device \u2014 device name for Hive events; --backend \u2014 raw = stdlib AF_PACKET (default, low memory); scapy = needed only for 802.11 monitor mode; --monitor \u2014 802.11 monitor mode (implies --backend scapy and a capable adapter already in monitor mode); --pcap \u2014 stream raw frames to this file (put it on the external HDD; rotates at 64 MB); --duration \u2014 stop after N seconds; --interval \u2014 diagnostics mode: seconds between snapshots; --target \u2014 diagnostics mode: extra name to resolve/probe",
+      "commands": [
+        "hexbee-netmon run"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-netmon-check",
+      "title": "hexbee-netmon check",
+      "body": "one-shot diagnostics, printed locally\nOptions: --target",
+      "commands": [
+        "hexbee-netmon check"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-netmon-status",
+      "title": "hexbee-netmon status",
+      "body": "config and capture capability",
+      "commands": [
+        "hexbee-netmon status"
+      ]
+    },
+    {
+      "id": "cmd-hexbee-netmon-config",
+      "title": "hexbee-netmon config",
+      "body": "write a config file for unattended runs\nOptions: --hive; --key; --path",
+      "commands": [
+        "hexbee-netmon config"
+      ]
+    }
+  ]
+}

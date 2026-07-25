@@ -16,6 +16,32 @@
 </p>
 
 <div class="panel">
+  <h2 style="margin-top:0">How do I use HexBee?</h2>
+  <p class="muted" style="margin-top:0">
+    Answered from the built-in HexBee manual — {{ kb_docs }} documents, with
+    the command reference generated from the CLIs themselves. The model is
+    given the relevant section and told it may not go beyond it, so it will
+    say it doesn't know rather than invent a command.
+    {% if not ai_available %}
+      With no model running you get the manual section verbatim, which for a
+      command lookup is exactly right.
+    {% endif %}
+  </p>
+  <form id="how-form" style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap">
+    <input id="how-question" style="flex:1; min-width:18rem"
+           placeholder="e.g. how do I seal a case in front of a witness?">
+    <button type="submit" class="btn-primary">Ask</button>
+  </form>
+  <div style="margin-top:.6rem; display:flex; gap:.35rem; flex-wrap:wrap">
+    {% for r in kb_recipes %}
+    <button class="btn btn-sm btn-ghost how-example" data-q="{{ r.title }}">{{ r.title }}</button>
+    {% endfor %}
+  </div>
+  <div id="how-answer" style="white-space: pre-wrap; margin-top: 1rem; font-family: var(--mono); font-size: .84rem;"></div>
+  <div id="how-sources" class="muted" style="margin-top:.5rem"></div>
+</div>
+
+<div class="panel">
   <h2 style="margin-top:0">Ask about the evidence</h2>
   <form id="ask-form" style="display:flex; flex-direction:column; gap:.6rem;">
     <textarea id="question" rows="3"
@@ -54,6 +80,30 @@ async function post(url, body) {
     body: JSON.stringify(body || {}) });
   return resp.json();
 }
+async function askHow(question) {
+  const out = document.getElementById("how-answer");
+  const src = document.getElementById("how-sources");
+  if (!question.trim()) return;
+  out.textContent = "Looking it up…";
+  src.textContent = "";
+  const data = await post("/api/v1/ai/howto", { question: question });
+  // textContent throughout: the answer may quote payload content.
+  out.textContent = data.answer || data.error || "";
+  src.textContent = data.sources && data.sources.length
+    ? `[engine: ${data.engine} · from: ${data.sources.join(", ")}]`
+    : `[engine: ${data.engine || "?"}]`;
+}
+document.getElementById("how-form").addEventListener("submit", e => {
+  e.preventDefault();
+  askHow(document.getElementById("how-question").value);
+});
+document.querySelectorAll(".how-example").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    const q = btn.getAttribute("data-q");
+    document.getElementById("how-question").value = q;
+    askHow(q);
+  });
+});
 document.getElementById("ask-form").addEventListener("submit", async e => {
   e.preventDefault();
   const out = document.getElementById("answer");

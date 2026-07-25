@@ -152,6 +152,14 @@ class HiveClient:
     def ai_summarize(self, case_id: int) -> dict:
         return self._request("POST", f"/ai/summarize/{case_id}")
 
+    def ai_howto(self, question: str) -> dict:
+        """Operator assistance, answered from the Hive's grounded manual."""
+        return self._request("POST", "/ai/howto", {"question": question})
+
+    def knowledge_search(self, query: str, limit: int = 5) -> list[dict]:
+        return self._request("GET", "/knowledge/search",
+                             params={"q": query, "limit": limit})["results"]
+
     # -- ingest (active tooling pushing its own findings) ------------------
 
     def ingest(self, events: list[dict], ingest_key: str) -> dict:

@@ -321,6 +321,32 @@ def cmd_attack(args) -> int:
     return 0
 
 
+def cmd_howto(args) -> int:
+    """Answer a 'how do I use HexBee' question, with or without a model."""
+    from .ai import LocalAI, how_to
+    from . import knowledge
+
+    cfg, _ = _open_db()
+    if args.list:
+        kb = knowledge.get()
+        for doc in kb.docs:
+            if doc.kind in ("recipe", "concept"):
+                print(f"  {doc.title}")
+        print(f"\n{len(kb.docs)} document(s) in the knowledge base.")
+        return 0
+    if not args.question:
+        print("Ask a question, or use --list to see what is covered.",
+              file=sys.stderr)
+        return 1
+
+    result = how_to(LocalAI(cfg.ai_url, cfg.ai_model), " ".join(args.question))
+    print(result["answer"])
+    print(f"\n[engine: {result['engine']}"
+          + (f" · sources: {', '.join(result['sources'])}"
+             if result.get("sources") else "") + "]")
+    return 0 if result.get("grounded") else 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="hexbee-hive", description="HexBee Hive server")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -392,6 +418,13 @@ def main(argv: list[str] | None = None) -> int:
     schk = scp.add_parser("check")
     schk.add_argument("target")
     schk.set_defaults(fn=cmd_scope)
+
+    ht = sub.add_parser("howto", help="ask how to use HexBee (grounded, "
+                                      "works with or without a local model)")
+    ht.add_argument("question", nargs="*")
+    ht.add_argument("--list", action="store_true",
+                    help="list what the knowledge base covers")
+    ht.set_defaults(fn=cmd_howto)
 
     atk = sub.add_parser("attack", help="MITRE ATT&CK attribution").add_subparsers(
         dest="attack_cmd", required=True)

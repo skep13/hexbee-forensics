@@ -83,6 +83,27 @@ cannot drift apart.
 evidence record. The server closes the stream after 5 minutes; browsers
 reconnect automatically.
 
+## Operator assistance (grounded)
+
+| Method & path | Role | Notes |
+|---|---|---|
+| `POST /ai/howto` | viewer | `{question}` → `{answer, engine, sources, grounded}` |
+| `GET /knowledge/search` | viewer | `?q=&limit=` — raw retrieval, no model involved |
+
+`/ai/howto` answers "how do I use HexBee" from a built-in manual rather than
+from model memory. The model is handed the matching sections and instructed
+that it may not go beyond them; `grounded: false` means the manual does not
+cover the question and the assistant said so instead of guessing. `sources`
+lists exactly the document ids the model was shown.
+
+`/ai/ask` routes automatically: questions naming real artifacts (a filename,
+an IP, a hash, a device name) go to the evidence path, instructional
+questions go to the manual.
+
+With no local model reachable, `/ai/howto` returns the matching manual
+section verbatim — for a command lookup that is the correct answer, not a
+degraded one.
+
 ## Threat intelligence
 
 | Method & path | Role | Notes |

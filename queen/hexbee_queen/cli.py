@@ -272,6 +272,19 @@ def cmd_ai_ask(args) -> int:
     return 0
 
 
+def cmd_ai_how(args) -> int:
+    """Ask how to use HexBee. Answered from the Hive's grounded manual, so it
+    cannot invent a command that does not exist."""
+    client = _load_client()
+    result = client.ai_howto(" ".join(args.question))
+    print(result["answer"])
+    footer = f"[engine: {result['engine']}"
+    if result.get("sources"):
+        footer += f" · sources: {', '.join(result['sources'])}"
+    print(f"\n{footer}]")
+    return 0 if result.get("grounded") else 2
+
+
 def cmd_ai_summarize(args) -> int:
     client = _load_client()
     result = client.ai_summarize(args.case_id)
@@ -731,6 +744,9 @@ def main(argv: list[str] | None = None) -> int:
     aa.add_argument("question")
     aa.add_argument("--case", type=int, help="scope to one case")
     aa.set_defaults(fn=cmd_ai_ask)
+    ahow = ai.add_parser("how", help="how do I use HexBee? (grounded answer)")
+    ahow.add_argument("question", nargs="+")
+    ahow.set_defaults(fn=cmd_ai_how)
     asum = ai.add_parser("summarize")
     asum.add_argument("case_id", type=int)
     asum.set_defaults(fn=cmd_ai_summarize)

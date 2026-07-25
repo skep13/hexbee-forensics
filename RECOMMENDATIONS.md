@@ -9,8 +9,9 @@ design. Where a recommendation's suggested approach would not survive contact
 with 1 GB of RAM or a radio-less microcontroller, the deviation is stated at
 the point it matters and again in [Limitations](#limitations).
 
-**Status:** 17/17 features built · 7/7 UI improvements built · 233 tests
-passing · no hardware-in-the-loop validation yet (see
+**Status:** 17/17 features built · 7/7 UI improvements built · plus a grounded
+operator knowledge base so the local model can actually drive the toolkit ·
+287 tests passing · no hardware-in-the-loop validation yet (see
 [What is not validated](#what-is-not-validated-on-hardware)).
 
 ---
@@ -603,7 +604,71 @@ that for a convenience feature would be the wrong trade.
 
 ---
 
+# Addition: the assistant knows how to operate HexBee  ✅ built
+
+**Where:** `hive/hexbee_hive/knowledge.py`, `scripts/build_knowledge.py`,
+`ai.py`, `POST /api/v1/ai/howto`, `hexbee-hive howto`, `hexbee-queen ai how`
+
+Not in the original recommendations, but necessary once Hive Mind became the
+operator's front door: the assistant knew the *evidence* and nothing about the
+*tool*. Asked "how do I seal a case", a 1–3B local model invents a plausible
+command — which is worse than refusing, because the operator will try it.
+
+So the model is never asked to recall anything. Retrieval finds the matching
+manual sections, and the model is handed those with instructions that it may
+not go beyond them.
+
+**The command reference is generated, not written.** `build_knowledge.py`
+walks all five argparse trees and snapshots 78 commands; event types come from
+`normalize.EVENT_SEVERITY`, technique mappings from `attack`. A hand-written
+manual drifts the moment a flag is renamed; a generated one cannot tell an
+operator to run something that no longer exists. A test asserts the snapshot
+is current.
+
+**Retrieval is BM25, not embeddings.** No embedding model, no vector store, no
+extra resident memory on a machine that has none to spare — and deterministic
+results you can debug. Curated aliases (`KEYWORDS`) carry the operator's
+vocabulary: "usb stick", "rubber ducky", "air gapped".
+
+Three things that took real tuning, all covered by tests:
+
+- **Command docs were outranking recipes.** One line each, so standard length
+  normalisation handed them the win. Fixed with `b=0.4` and kind weighting.
+- **Evidence questions were routing to the manual.** "was evil.exe seen
+  anywhere" scored 26 because *evil* and *exe* both appear in the manual.
+  Fixed by scoring routing over curated documents only, plus direct detection
+  of artifact markers (filenames, IPs, hashes, device names) which veto the
+  manual route.
+- **Weak single-term matches passed as answers.** "write me a poem" matched
+  the report recipe because it mentions writing. Fixed with a term-coverage
+  requirement.
+
+**It works with no model at all.** The fallback returns the matching manual
+section verbatim, which for a command lookup is the correct answer rather than
+a degraded one.
+
+---
+
 # Limitations
+
+## The assistant's knowledge
+
+- **Retrieval is lexical.** It matches words, not meaning. A question phrased
+  entirely in vocabulary absent from the manual and the alias table will miss,
+  and the fix is to add the alias rather than to hope.
+- **Coverage is what is written.** 33 recipes and 5 concepts cover the common
+  operator tasks. A question about something nobody wrote a recipe for gets an
+  honest refusal, not an answer.
+- **The snapshot must be regenerated after CLI changes.** `python
+  scripts/build_knowledge.py`, and commit the result. A test fails if it drifts
+  for the commands it checks, but it cannot catch every rename.
+- **Grounding constrains the model; it does not compel it.** The prompt
+  forbids inventing commands and every answer cites its sources so you can
+  check, but a small model can still paraphrase badly. The `sources` field
+  exists precisely so you can go and read what it was actually shown.
+- **Only the Hive holds the manual.** Queen and CLI clients ask the Hive, so
+  an unreachable Hive means no assistance — the same failure mode as every
+  other Queen feature.
 
 ## What is not validated on hardware
 

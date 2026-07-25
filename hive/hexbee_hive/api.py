@@ -778,12 +778,54 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
         audit(db, g.user["username"], "ai_summarize", f"case {case_id}")
         return jsonify(result)
 
+    @app.post("/api/v1/ai/howto")
+    @require("viewer")
+    def ai_howto_route():
+        """Operator assistance, answered from the grounded HexBee manual.
+
+        Separate from /ai/ask so a client can demand the grounded path
+        explicitly rather than relying on routing.
+        """
+        from .ai import how_to
+
+        body = request.get_json(silent=True) or {}
+        question = (body.get("question") or "").strip()
+        if not question:
+            return jsonify(error="question is required"), 400
+        result = how_to(ai_engine, question)
+        audit(db, g.user["username"], "ai_howto", question[:200])
+        return jsonify(result)
+
+    @app.get("/api/v1/knowledge/search")
+    @require("viewer")
+    def api_knowledge_search():
+        """Raw retrieval, no model involved. Useful for checking what the
+        assistant would have been shown."""
+        from . import knowledge
+
+        query = request.args.get("q", "")
+        if not query:
+            return jsonify(error="q is required"), 400
+        kb = knowledge.get()
+        limit = max(1, min(request.args.get("limit", default=5, type=int), 20))
+        return jsonify(results=[
+            {"id": doc.id, "title": doc.title, "kind": doc.kind,
+             "source": doc.source, "commands": doc.commands,
+             "body": doc.body, "score": round(score, 2)}
+            for doc, score in kb.search(query, limit)])
+
     @app.get("/assistant")
     @require("viewer", api=False)
     def assistant_page():
+        from . import knowledge
+
+        kb = knowledge.get()
         return render_template("assistant.html", user=g.user,
                                ai_available=ai_engine.available(),
-                               model=cfg.ai_model, cases=list_cases(db))
+                               model=cfg.ai_model, cases=list_cases(db),
+                               kb_docs=len(kb.docs),
+                               kb_recipes=[d for d in kb.docs
+                                           if d.kind == "recipe"][:12])
 
     # -- REST: integrity & audit -----------------------------------------
 
