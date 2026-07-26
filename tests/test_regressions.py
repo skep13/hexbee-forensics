@@ -181,6 +181,62 @@ def test_stream_slot_is_released_when_the_client_disconnects(db, tmp_path):
 
 
 # =====================================================================
+# Cross-platform collectors, found broken by CI on its first run.
+#
+# Both failed silently — returning nothing rather than erroring — which is
+# why they survived local testing on a single OS.
+# =====================================================================
+
+def test_native_memory_readings_work_on_this_platform():
+    """`wmic` is gone from current Windows images, so the Windows path
+    returned nothing at all. The contract is the same everywhere."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "forager"))
+    from hexbee_forager.diagnostics import _meminfo_native
+
+    info = _meminfo_native()
+    assert info.get("memory_total", 0) > 0, (
+        "no memory total on this platform — the native fallback is broken")
+    assert 0 <= info.get("memory_percent", 0) <= 100
+
+
+def test_process_collector_does_not_use_gnu_only_ps_flags():
+    """`--no-headers` is a GNU extension. BSD ps on macOS rejects it and
+    returns nothing, so every Mac silently collected zero processes."""
+    import inspect
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "forager"))
+    from hexbee_forager import collectors
+
+    # Comments are stripped: the fix explains the flag by name, and matching
+    # that explanation would make this test fail on the correct code.
+    code = "\n".join(line for line in
+                     inspect.getsource(collectors.collect_processes).splitlines()
+                     if not line.strip().startswith("#"))
+    assert "--no-headers" not in code, (
+        "GNU-only ps flag: this silently breaks process collection on macOS")
+
+
+def test_process_collector_finds_something_here():
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "forager"))
+    from hexbee_forager.collectors import collect_processes
+
+    events = collect_processes()
+    assert len(events) >= 1, "no processes found on this platform"
+    assert all(e["event_type"] == "process_snapshot" for e in events)
+    # A header row parsed as a process would have a non-numeric pid.
+    assert all(isinstance(e["payload"].get("pid"), (int, type(None)))
+               for e in events)
+
+
+# =====================================================================
 # A passive sweep must not emit one enormous batch.
 # =====================================================================
 

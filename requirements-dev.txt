@@ -1,0 +1,26 @@
+# Everything needed to run the full test suite.
+#
+# Declared in one place so CI and a developer's machine install the same set.
+# The first CI run failed because the workflow hardcoded a shorter list than
+# the tests actually needed — piexif and segno were missing.
+#
+#     pip install -r requirements-dev.txt
+#     pytest tests/ -q
+
+pytest>=7.0
+
+# -- required by the Hive -------------------------------------------------
+flask>=2.2                  # dashboard and REST API
+
+# -- optional at runtime, but exercised by tests --------------------------
+# Each of these has a graceful fallback in the product; the tests cover both
+# the working path and the degraded one, so the suite needs them present.
+pillow>=10.0                # image handling for EXIF extraction (Comb)
+piexif>=1.1                 # writing EXIF in the GPS round-trip test
+segno>=1.5                  # QR evidence labels (Hive)
+psutil>=5.9                 # richer process/network data (Forager)
+
+# Deliberately not listed:
+#   yara-python  — needs a compiled library; the suite covers the absent case
+#   pyserial     — hardware-only path, covered by fakes
+#   paho-mqtt    — the MQTT engine is not exercised by the suite

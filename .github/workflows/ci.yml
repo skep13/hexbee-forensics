@@ -32,10 +32,12 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
 
+      # One declared set, shared with developers — hardcoding a list here is
+      # what made the first CI run fail on missing piexif and segno.
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install pytest flask pillow
+          pip install -r requirements-dev.txt
 
       - name: Run the suite
         run: pytest tests/ -q

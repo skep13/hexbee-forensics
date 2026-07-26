@@ -92,15 +92,7 @@ def _meminfo_native() -> dict:
     if IS_MACOS:
         return _meminfo_macos()
     if IS_WINDOWS:
-        out = _run(["wmic", "OS", "get",
-                    "FreePhysicalMemory,TotalVisibleMemorySize", "/format:list"])
-        free = re.search(r"FreePhysicalMemory=(\d+)", out)
-        total = re.search(r"TotalVisibleMemorySize=(\d+)", out)
-        if free and total:
-            total_b, free_b = int(total.group(1)) * 1024, int(free.group(1)) * 1024
-            return {"memory_total": total_b, "memory_available": free_b,
-                    "memory_percent": round(100 * (1 - free_b / total_b), 1)}
-        return {}
+        return _meminfo_windows()
     try:
         values = {}
         with open("/proc/meminfo", encoding="utf-8") as fh:
@@ -123,6 +115,53 @@ def _meminfo_native() -> dict:
         out["swap_used"] = swap_total - swap_free
         out["swap_percent"] = round(100 * (swap_total - swap_free) / swap_total, 1)
     return out
+
+
+def _meminfo_windows() -> dict:
+    """Memory figures via GlobalMemoryStatusEx.
+
+    Not `wmic`: Microsoft deprecated it and it is absent from current Windows
+    images, so the previous implementation silently returned nothing. This
+    call is in kernel32, has been since Windows 2000, and costs no subprocess.
+    """
+    import ctypes
+
+    class _MemoryStatusEx(ctypes.Structure):
+        _fields_ = [("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+
+    status = _MemoryStatusEx()
+    status.dwLength = ctypes.sizeof(_MemoryStatusEx)
+    try:
+        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+            return {}
+    except (AttributeError, OSError):
+        return {}
+
+    info = {
+        "memory_total": int(status.ullTotalPhys),
+        "memory_available": int(status.ullAvailPhys),
+        "memory_percent": float(status.dwMemoryLoad),
+    }
+    # The page file is Windows' equivalent of swap; report it the same way so
+    # the swap_pressure rule works identically across platforms.
+    page_total = int(status.ullTotalPageFile)
+    if page_total > info["memory_total"]:
+        swap_total = page_total - info["memory_total"]
+        swap_free = max(0, int(status.ullAvailPageFile) - info["memory_available"])
+        info["swap_total"] = swap_total
+        info["swap_used"] = swap_total - swap_free
+        if swap_total:
+            info["swap_percent"] = round(
+                100 * info["swap_used"] / swap_total, 1)
+    return info
 
 
 def _meminfo_macos() -> dict:

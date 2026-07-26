@@ -121,14 +121,18 @@ def collect_processes() -> list[dict]:
                 "window": row.get("Window Title"),
             }))
     else:
-        out = _run(["ps", "-eo", "pid,user,comm,args", "--no-headers"])
+        # `--no-headers` is a GNU extension; BSD ps on macOS rejects it and
+        # returns nothing, which silently produced an empty process list on
+        # every Mac. Ask for the header and drop it ourselves instead.
+        out = _run(["ps", "-eo", "pid,user,comm,args"])
         for line in out.splitlines():
             parts = line.split(None, 3)
-            if len(parts) >= 3:
-                events.append(_event("process_snapshot", {
-                    "pid": _int(parts[0]), "user": parts[1], "name": parts[2],
-                    "cmdline": (parts[3] if len(parts) > 3 else "")[:500],
-                }))
+            if len(parts) < 3 or not parts[0].isdigit():
+                continue        # header row, or a line we cannot make sense of
+            events.append(_event("process_snapshot", {
+                "pid": _int(parts[0]), "user": parts[1], "name": parts[2],
+                "cmdline": (parts[3] if len(parts) > 3 else "")[:500],
+            }))
     return events
 
 
