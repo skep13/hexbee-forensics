@@ -176,6 +176,12 @@ class NetMon:
         return {"packets": self.engine.packets, "alerts": self.alerts,
                 "hosts": len(self.engine.hosts), **result}
 
+    # A busy or spoofed network can present thousands of apparent hosts. One
+    # event each would be a single enormous batch for a Pi to serialise and a
+    # Hive to chain, so the sweep reports the most-seen hosts and says how
+    # many it left out rather than silently truncating.
+    MAX_RECON_HOSTS = 512
+
     def _recon_events(self) -> list[dict]:
         """Recon mode output: one event per host, plus a rollup.
 
@@ -183,7 +189,10 @@ class NetMon:
         flooding the evidence log — a /24 produces at most 254 records.
         """
         events = []
-        for host in self.engine.inventory():
+        inventory = sorted(self.engine.inventory(),
+                           key=lambda h: h["packets"], reverse=True)
+        omitted = max(0, len(inventory) - self.MAX_RECON_HOSTS)
+        for host in inventory[:self.MAX_RECON_HOSTS]:
             events.append(self._event("recon_finding", {
                 "finding": "host_observed",
                 "ip": host["ip"], "mac": host["mac"],
@@ -194,6 +203,9 @@ class NetMon:
         events.append(self._event("recon_finding", {
             "finding": "sweep_summary",
             "hosts": len(self.engine.hosts),
+            "hosts_reported": len(inventory) - omitted,
+            "hosts_omitted": omitted,
+            "truncated": bool(omitted),
             "services": sum(len(p) for p in self.engine.services.values()),
             "method": "passive"}))
         return events

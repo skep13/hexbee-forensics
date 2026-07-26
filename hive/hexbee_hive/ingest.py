@@ -48,25 +48,33 @@ _INTEL_KIND_TO_IOC = {"sha256": "sha256", "md5": "substring", "sha1": "substring
 
 
 def _promote_intel(db: Database, hits: list[dict]) -> list[dict]:
-    """Turn threat-feed hits into IOC rows so they get the full treatment
-    (ioc_hits, the `ioc` tag, the audit trail, the /iocs page)."""
-    from .ioc import add_ioc
+    """Record threat-feed hits as IOC rows so they get the full treatment —
+    ioc_hits, the `ioc` tag, the audit trail, and a place on the IOC page
+    with their provenance.
+
+    These rows are tagged with the `intel-sync` actor and are deliberately
+    excluded from `match_iocs`'s linear substring scan: the intel store
+    already found them by indexed lookup, and rescanning them on every
+    subsequent event is how a long deployment slows to a crawl.
+    """
+    from .ioc import INTEL_ACTOR, add_ioc
 
     promoted = []
     for hit in hits:
         kind = _INTEL_KIND_TO_IOC.get(hit["kind"], "substring")
+        value = hit["value"].lower()
         row = db.query_one("SELECT * FROM iocs WHERE kind = ? AND value = ?",
-                           (kind, hit["value"].lower()))
+                           (kind, value))
         if row is None:
             try:
                 add_ioc(db, kind, hit["value"],
                         f"threat intel: {hit['source']}"
                         + (f" ({hit['tag']})" if hit.get("tag") else ""),
-                        actor="intel-sync")
-            except (ValueError, Exception):
+                        actor=INTEL_ACTOR)
+            except Exception:
                 continue
             row = db.query_one("SELECT * FROM iocs WHERE kind = ? AND value = ?",
-                               (kind, hit["value"].lower()))
+                               (kind, value))
         if row is not None:
             promoted.append(dict(row))
     return promoted

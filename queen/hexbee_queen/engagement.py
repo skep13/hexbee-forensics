@@ -63,8 +63,22 @@ def gather(client, case_id: int) -> dict:
     reads there and five thousand rows over the wire here. The dashboard's
     preview page consumes the identical structure, so the preview and the
     deliverable cannot drift apart.
+
+    The endpoint is required: a Hive older than this feature returns 404 and
+    the caller is told to upgrade, rather than silently producing a thinner
+    report that looks complete.
     """
-    data = client.engagement_data(case_id)
+    from .client import HiveError
+
+    try:
+        data = client.engagement_data(case_id)
+    except HiveError as exc:
+        if exc.status == 404:
+            raise HiveError(404, (
+                "this Hive does not provide engagement data — either the case "
+                "does not exist, or the Hive predates this feature and needs "
+                "upgrading")) from exc
+        raise
     try:
         data["ai"] = client.ai_status()
     except Exception:

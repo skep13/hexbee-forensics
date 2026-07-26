@@ -685,7 +685,36 @@ physical device**. This is the honest state of the build.
 | Memory acquisition (#14) | Prechecks, hashing, and event shapes tested; no dump performed | LiME built for your kernel, or winpmem on a Windows target |
 
 The Python side — Hive, Comb, Forager, Queen, Netmon decoding and rules — is
-covered by **233 passing tests**.
+covered by **332 passing tests**, run on Linux, macOS and Windows by CI on
+every push. CI also fails the build if the assistant's generated command
+reference drifts from the actual CLIs, and lints the installer.
+
+## Bugs found by auditing the finished build
+
+Three shipped before they were caught. All are fixed, with regression tests:
+
+- **Threat-feed hits were poisoning the ingest hot path.** Feed indicators
+  were promoted into the analyst watchlist, which is scanned by substring
+  against every string of every ingested event. A synced feed therefore made
+  ingest slower over time — exactly what the separate indexed intel database
+  exists to prevent. Feed rows are now excluded from that scan (they are
+  already matched by index) and shown separately in the UI. Measured: 150
+  accumulated feed hits, 0 rows scanned per event, ingest time flat.
+- **The assistant misrouted beginner questions.** The pattern that recognises
+  device names like `Scout01` also matched `SHA256` and `Windows10`, so "what
+  is a SHA256 hash" was treated as a question about specific evidence and
+  answered with hive statistics. Glossary lookups now take precedence and
+  known technical terms are excluded.
+- **Live streams could starve ingest.** Each Server-Sent Events connection
+  pins a thread and polls SQLite through one shared connection; several
+  forgotten browser tabs would contend with evidence ingest on a 1 GB Pi.
+  Concurrent streams are now capped, with the slot released on any exit path.
+
+Verified sound while checking: shell scripts are LF in the repository (so the
+installer runs on macOS), and the hand-rolled HMAC in the Pico Sentinel
+firmware matches Python's `hmac` on every vector including the over-length
+key path — a silent mismatch there would have made every evidence seal fail
+verification for no visible reason.
 
 ## Capability limits by design
 

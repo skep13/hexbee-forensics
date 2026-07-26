@@ -1231,12 +1231,22 @@ class Knowledge:
                 or match.group("term3") or "").strip().strip("?.\"' ").lower()
         if not term:
             return None
-        # Longest term first, so "chain of custody" wins over "chain".
-        for doc in sorted((d for d in self.docs if d.source == "glossary"),
-                          key=lambda d: -len(d.keywords[0] if d.keywords else "")):
-            name = (doc.keywords[0] if doc.keywords else "").lower()
-            if term == name or term == f"a {name}" or term == f"an {name}":
-                return doc
+
+        # Longest glossary term first, so "chain of custody" beats "chain".
+        entries = sorted(
+            ((d, (d.keywords[0] if d.keywords else "").lower())
+             for d in self.docs if d.source == "glossary"),
+            key=lambda pair: -len(pair[1]))
+
+        # Try the whole phrase, then drop leading qualifiers one at a time:
+        # "sha256 hash" -> "hash", "signed evidence bundle" -> "bundle".
+        # People name the thing they mean at the end of the phrase.
+        words = term.split()
+        for start in range(len(words)):
+            candidate = " ".join(words[start:])
+            for doc, name in entries:
+                if name and candidate in (name, f"a {name}", f"an {name}"):
+                    return doc
         return None
 
     def routing_score(self, query: str) -> float:

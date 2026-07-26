@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import hmac
 import json
+import os
 from functools import wraps
 
 from flask import (
@@ -80,7 +81,7 @@ from .ai import LocalAI, ask as ai_ask, summarize_case
 from .evidence_export import chain_anchor, export_case, verify_anchor
 from .ingest import process_raw_event
 from .integrity import verify_chain
-from .ioc import add_ioc, list_hits, list_iocs, remove_ioc
+from .ioc import add_ioc, count_iocs, list_hits, list_iocs, remove_ioc
 from .maps import PLACEHOLDER_TILE, TileStore, cluster_points, evidence_points
 from .reference import ReferenceLibrary, render_markdown_basic
 from .normalize import NormalizationError
@@ -97,6 +98,14 @@ from .store import EVENT_SELECT, audit, event_to_dict
 from .timeline import case_timeline, incident_timeline
 
 COOKIE = "hexbee_token"
+
+# Concurrent Server-Sent Events streams. Each pins a worker thread and polls
+# the database on a timer; on a Raspberry Pi that budget is small and shared
+# with evidence ingest, which must always win.
+import threading as _threading
+
+MAX_LIVE_STREAMS = int(os.environ.get("HEXBEE_MAX_STREAMS", "4"))
+_stream_slots = _threading.BoundedSemaphore(MAX_LIVE_STREAMS)
 
 # Payload keys, in preference order, that make a good one-line summary in the
 # live feed. Most producers set one of these deliberately.
@@ -136,8 +145,7 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
     attack.load_bundle()
     log_rules = LogRuleEngine()
     # Scope mode: 'enforce' (default) denies when no scope is defined.
-    import os as _os
-    scope_mode = _os.environ.get("HEXBEE_SCOPE_MODE", "enforce")
+    scope_mode = os.environ.get("HEXBEE_SCOPE_MODE", "enforce")
     # Reject oversized bodies before they hit handlers (evidence photos capped
     # separately in the field-upload route).
     app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
@@ -422,7 +430,9 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
     @app.get("/api/v1/iocs")
     @require("viewer")
     def api_iocs():
-        return jsonify(iocs=list_iocs(db))
+        source = request.args.get("source", "analyst")
+        return jsonify(iocs=list_iocs(db, source), counts=count_iocs(db),
+                       source=source)
 
     @app.post("/api/v1/iocs")
     @require("investigator")
@@ -601,6 +611,13 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
         import time
 
         MAX_SECONDS, POLL = 300, 2
+        # Each open stream pins a worker thread and polls SQLite through the
+        # database's single shared connection. On a 1 GB Pi a handful of
+        # forgotten browser tabs would contend with the ingest path, so the
+        # number of concurrent streams is capped rather than left to chance.
+        if not _stream_slots.acquire(blocking=False):
+            return jsonify(error="too many live streams open; close a tab and "
+                                 "retry"), 503
         since = request.args.get("since", type=int)
         if since is None:
             row = db.query_one("SELECT MAX(id) AS m FROM events")
@@ -609,25 +626,32 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
         def generate():
             last = since
             started = time.time()
-            yield f"event: hello\ndata: {json.dumps({'since': last})}\n\n"
-            while time.time() - started < MAX_SECONDS:
-                rows = db.query(
-                    EVENT_SELECT + " WHERE e.id > ? ORDER BY e.id LIMIT 50", (last,))
-                for row in rows:
-                    event = event_to_dict(row)
-                    last = event["id"]
-                    payload = {
-                        "id": event["id"], "at": event["occurred_at"],
-                        "device": event["device"],
-                        "event_type": event["event_type"],
-                        "severity": event["severity"],
-                        "incident_id": event["incident_id"],
-                        "summary": _event_summary(event),
-                    }
-                    yield f"id: {event['id']}\ndata: {json.dumps(payload)}\n\n"
-                if not rows:
-                    yield ": keepalive\n\n"   # keeps proxies from timing out
-                time.sleep(POLL)
+            try:
+                yield f"event: hello\ndata: {json.dumps({'since': last})}\n\n"
+                while time.time() - started < MAX_SECONDS:
+                    rows = db.query(
+                        EVENT_SELECT + " WHERE e.id > ? ORDER BY e.id LIMIT 50",
+                        (last,))
+                    for row in rows:
+                        event = event_to_dict(row)
+                        last = event["id"]
+                        payload = {
+                            "id": event["id"], "at": event["occurred_at"],
+                            "device": event["device"],
+                            "event_type": event["event_type"],
+                            "severity": event["severity"],
+                            "incident_id": event["incident_id"],
+                            "summary": _event_summary(event),
+                        }
+                        yield f"id: {event['id']}\ndata: {json.dumps(payload)}\n\n"
+                    if not rows:
+                        yield ": keepalive\n\n"   # stops proxies timing out
+                    time.sleep(POLL)
+            finally:
+                # Released however the stream ends: timeout, client
+                # disconnect, or an exception mid-generator. Leaking a slot
+                # would eventually refuse every stream.
+                _stream_slots.release()
 
         resp = Response(generate(), mimetype="text/event-stream")
         resp.headers["Cache-Control"] = "no-cache"
@@ -1007,7 +1031,10 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
     @app.get("/iocs")
     @require("viewer", api=False)
     def iocs_page():
-        return render_template("iocs.html", user=g.user, iocs=list_iocs(db),
+        source = request.args.get("source", "analyst")
+        return render_template("iocs.html", user=g.user,
+                               iocs=list_iocs(db, source),
+                               counts=count_iocs(db), source=source,
                                hits=list_hits(db, 100))
 
     @app.post("/iocs/new")

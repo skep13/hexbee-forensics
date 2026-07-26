@@ -200,6 +200,19 @@ _EVIDENCE_MARKERS = re.compile(
     r")\b"
 )
 
+# Words that look like a device name to the pattern above but are ordinary
+# technical vocabulary. Without this, "what is a SHA256 hash" is treated as a
+# question about a specific machine and answered with hive statistics —
+# exactly the question a beginner asks, answered exactly wrong.
+_NOT_DEVICE_NAMES = {
+    "sha1", "sha224", "sha256", "sha384", "sha512", "sha3", "md5", "crc32",
+    "base64", "utf8", "utf16", "ascii", "iso8601", "rfc3164", "rfc5424",
+    "x509", "pbkdf2", "hmac256", "aes256", "rsa2048", "ipv4", "ipv6",
+    "windows7", "windows8", "windows10", "windows11", "win10", "win11",
+    "python3", "python2", "esp32", "rp2040", "pico2", "usb2", "usb3",
+    "wpa2", "wpa3", "http2", "tls12", "tls13", "ntlmv1", "ntlmv2",
+}
+
 # Question shapes that are about what the evidence says, not how to operate.
 _EVIDENCE_HINTS = (
     "what happened", "summarise", "summarize", "when did", "who logged",
@@ -219,7 +232,10 @@ def looks_evidential(question: str) -> bool:
     lowered = question.lower()
     if any(hint in lowered for hint in _EVIDENCE_HINTS):
         return True
-    return bool(_EVIDENCE_MARKERS.search(question))
+    for match in _EVIDENCE_MARKERS.finditer(question):
+        if match.group(0).lower() not in _NOT_DEVICE_NAMES:
+            return True
+    return False
 
 
 def how_to(engine: LocalAI, question: str) -> dict:
@@ -282,6 +298,11 @@ def ask(db, engine: LocalAI, question: str, case_id: int | None = None) -> dict:
     from . import knowledge
 
     kb = knowledge.get()
+    # "What is X" always means the glossary, never the evidence. Checked
+    # first because a definition question can contain something that looks
+    # like an artifact — "what is a SHA256 hash" being the obvious one.
+    if kb.define(question) is not None:
+        return how_to(engine, question)
     # A question naming a real artifact is about the evidence, whatever it
     # scores against the manual — unless it is also plainly instructional
     # ("how do I add evil.exe as an IOC").

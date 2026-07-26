@@ -1,0 +1,92 @@
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # HexBee runs on the analyst's laptop (macOS), the Hive (Linux), and
+        # is developed on Windows. All three have to stay green — the whole
+        # point of the platform work was that none of them is second-class.
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.11"]
+        include:
+          # Raspberry Pi OS Bookworm ships 3.11, Kali ships newer. Check the
+          # floor the packages actually claim to support.
+          - os: ubuntu-latest
+            python: "3.9"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest flask pillow
+
+      - name: Run the suite
+        run: pytest tests/ -q
+
+  snapshot:
+    name: knowledge snapshot is current
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # The assistant's command reference is generated from the CLIs. If
+      # somebody renames a flag and forgets to regenerate, the assistant will
+      # confidently tell an operator to run something that no longer exists.
+      # That is worse than no assistant at all, so it fails the build.
+      - name: Regenerate and check for drift
+        run: |
+          python scripts/build_knowledge.py
+          if ! git diff --quiet hive/hexbee_hive/knowledge_commands.json; then
+            echo "::error::The knowledge snapshot is out of date."
+            echo "A CLI changed without regenerating the assistant's reference."
+            echo "Fix: python scripts/build_knowledge.py && git add hive/hexbee_hive/knowledge_commands.json"
+            git --no-pager diff --stat hive/hexbee_hive/knowledge_commands.json
+            exit 1
+          fi
+          echo "Snapshot matches the CLIs."
+
+  shell:
+    name: installer is valid shell
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # An installer that fails halfway leaves a beginner worse off than one
+      # that refuses to start, so it gets linted.
+      - name: shellcheck
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y shellcheck
+          shellcheck --severity=warning install.sh queen/setup-kali.sh hive/install.sh
+
+      - name: Line endings must be LF
+        run: |
+          for f in install.sh queen/setup-kali.sh hive/install.sh; do
+            if grep -qU $'\r' "$f"; then
+              echo "::error::$f has CRLF line endings and will not run on macOS or Linux"
+              exit 1
+            fi
+          done
+          echo "All shell scripts are LF."
+
+      - name: Installer dry run
+        run: bash install.sh --check

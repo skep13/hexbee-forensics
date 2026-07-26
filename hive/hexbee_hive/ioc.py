@@ -65,13 +65,38 @@ def remove_ioc(db: Database, ioc_id: int, actor: str) -> bool:
     return True
 
 
-def list_iocs(db: Database) -> list[dict]:
+def list_iocs(db: Database, source: str = "analyst",
+              limit: int = 500) -> list[dict]:
+    """IOC rows with hit counts.
+
+    `source` selects analyst-entered indicators (the default — this is the
+    watchlist a person curates), feed-derived ones, or both. They are
+    separated because a synced feed can contribute thousands of rows and
+    would otherwise bury the handful an investigator actually added.
+    """
+    where = {"analyst": "WHERE i.added_by != ?",
+             "intel": "WHERE i.added_by = ?",
+             "all": ""}.get(source, "WHERE i.added_by != ?")
+    params: tuple = () if source == "all" else (INTEL_ACTOR,)
     rows = db.query(
-        """SELECT i.*, COUNT(h.id) AS hits
-           FROM iocs i LEFT JOIN ioc_hits h ON h.ioc_id = i.id
-           GROUP BY i.id ORDER BY i.id DESC"""
+        f"""SELECT i.*, COUNT(h.id) AS hits
+            FROM iocs i LEFT JOIN ioc_hits h ON h.ioc_id = i.id
+            {where}
+            GROUP BY i.id ORDER BY i.id DESC LIMIT ?""",
+        params + (max(1, min(limit, 5000)),),
     )
     return [dict(r) for r in rows]
+
+
+def count_iocs(db: Database) -> dict:
+    rows = db.query(
+        "SELECT added_by = ? AS from_feed, COUNT(*) AS n FROM iocs "
+        "GROUP BY from_feed", (INTEL_ACTOR,))
+    counts = {"analyst": 0, "intel": 0}
+    for row in rows:
+        counts["intel" if row["from_feed"] else "analyst"] = row["n"]
+    counts["total"] = counts["analyst"] + counts["intel"]
+    return counts
 
 
 def list_hits(db: Database, limit: int = 200) -> list[dict]:
@@ -105,13 +130,26 @@ def _payload_strings(value) -> list[str]:
     return out
 
 
+# Indicators imported from a threat feed are matched by the intel store's
+# indexed exact lookup, not here. Scanning them again in this linear pass
+# would undo the whole point of that design: a synced feed can be hundreds of
+# thousands of rows, and this runs on every single ingested event.
+INTEL_ACTOR = "intel-sync"
+
+
 def match_iocs(db: Database, payload: dict) -> list[dict]:
-    """IOC rows whose value appears in any payload string."""
+    """Analyst-entered IOC rows whose value appears in any payload string.
+
+    Deliberately excludes feed-derived indicators. Those are promoted into
+    this table so they appear on the IOC page with their provenance, but they
+    are found by `intel.match_intel` using an indexed lookup — rescanning
+    them here would grow the per-event cost without finding anything new.
+    """
     haystacks = _payload_strings(payload)
     if not haystacks:
         return []
     matches = []
-    for ioc in db.query("SELECT * FROM iocs"):
+    for ioc in db.query("SELECT * FROM iocs WHERE added_by != ?", (INTEL_ACTOR,)):
         needle = ioc["value"].lower()
         if any(needle in hay for hay in haystacks):
             matches.append(dict(ioc))

@@ -5,7 +5,22 @@
   <div><h1>Indicators of Compromise</h1>
     <p class="sub">Events are matched against this watchlist at ingest — a hit escalates to
       critical, opens an incident, and is recorded below.</p></div>
+  <div class="actions">
+    <a class="btn {{ 'btn-primary' if source == 'analyst' else '' }}"
+       href="/iocs?source=analyst">Yours ({{ counts.analyst }})</a>
+    <a class="btn {{ 'btn-primary' if source == 'intel' else '' }}"
+       href="/iocs?source=intel">From feeds ({{ counts.intel }})</a>
+  </div>
 </div>
+
+{% if source == 'intel' %}
+<div class="panel">
+  <p class="muted" style="margin:0">These came from synced threat-intelligence
+    feeds, not from you. They are matched by an indexed lookup rather than the
+    scan used for your own indicators, so a feed of any size costs nothing per
+    event.</p>
+</div>
+{% endif %}
 
 {% if user.role in ('investigator', 'administrator') %}
 <div class="panel">
