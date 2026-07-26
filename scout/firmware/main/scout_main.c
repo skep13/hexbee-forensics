@@ -15,6 +15,7 @@
  * from needing an RTC before SNTP sync completes.
  */
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -40,15 +41,37 @@ static char s_topic[64];
 
 /* ---------------------------------------------------------------- events */
 
+/* Anything before 2020-01-01 means the clock was never set. The Scout has no
+ * battery-backed RTC, so time(NULL) counts from 1970 until SNTP succeeds —
+ * and in the field kit's normal air-gapped deployment it never will. */
+#define CLOCK_TRUSTED_AFTER 1577836800LL
+
+static bool clock_is_trusted(void)
+{
+    return (long long)time(NULL) > CLOCK_TRUSTED_AFTER;
+}
+
 static void emit_event(const char *event_type, const char *payload_json)
 {
     char json[EVENT_MAX_LEN];
-    int n = snprintf(json, sizeof(json),
+    const char *payload = payload_json && payload_json[0] ? payload_json : "{}";
+    int n;
+
+    if (clock_is_trusted()) {
+        n = snprintf(json, sizeof(json),
                      "{\"device\":\"%s\",\"event_type\":\"%s\","
                      "\"occurred_at\":%lld,\"payload\":%s}",
                      CONFIG_HEXBEE_DEVICE_NAME, event_type,
-                     (long long)time(NULL),
-                     payload_json && payload_json[0] ? payload_json : "{}");
+                     (long long)time(NULL), payload);
+    } else {
+        /* Omit occurred_at entirely: the Hive then records its own receipt
+         * time, which is at least true. Claiming 1970 would put every field
+         * observation half a century out of place on the case timeline —
+         * worse than admitting we do not know. */
+        n = snprintf(json, sizeof(json),
+                     "{\"device\":\"%s\",\"event_type\":\"%s\",\"payload\":%s}",
+                     CONFIG_HEXBEE_DEVICE_NAME, event_type, payload);
+    }
     if (n < 0 || n >= (int)sizeof(json)) {
         ESP_LOGE(TAG, "event too large, dropped: %s", event_type);
         return;

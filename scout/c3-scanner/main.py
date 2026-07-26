@@ -67,6 +67,34 @@ AUTH_MODES = {0: "open", 1: "wep", 2: "wpa-psk", 3: "wpa2-psk",
 _seen = {}
 _queue = []
 
+# The C3 has no battery-backed clock. Until NTP succeeds, time.time() counts
+# from the MicroPython epoch starting at zero — so converting it would stamp
+# every sighting 2000-01-01. Track whether the clock was ever set, and only
+# claim a time when it was.
+_time_synced = False
+# Seconds between the MicroPython epoch (2000-01-01) and the unix epoch.
+_EPOCH_OFFSET = 946684800
+
+
+def sync_time():
+    """Set the clock from NTP. Returns True when the time can be trusted.
+
+    Failure is expected and fine: the kit is built to run air-gapped, and a
+    scanner with no clock is still useful — the Hive records its own receipt
+    time for anything that arrives without one.
+    """
+    global _time_synced
+    try:
+        import ntptime
+
+        ntptime.settime()
+        _time_synced = True
+        print("clock synced from NTP")
+    except Exception as exc:
+        _time_synced = False
+        print("no NTP (", exc, ") — the Hive will timestamp on receipt")
+    return _time_synced
+
 
 def _mac(raw):
     return ubinascii.hexlify(raw, ":").decode()
@@ -99,15 +127,22 @@ def _should_report(key, now):
 
 def _enqueue(payload):
     payload["device_name"] = DEVICE
+    # Say plainly whether the board knew what time it was. An analyst reading
+    # the case timeline needs to know which timestamps came from the sensor
+    # and which the Hive supplied on receipt.
+    payload["time_synced"] = _time_synced
     if LAT is not None and LON is not None:
         payload["lat"] = LAT
         payload["lon"] = LON
-    _queue.append({
+    event = {
         "device": DEVICE,
         "event_type": "wireless_sighting",
-        "occurred_at": time.time() + 946684800,   # MicroPython epoch -> unix
         "payload": payload,
-    })
+    }
+    if _time_synced:
+        event["occurred_at"] = time.time() + _EPOCH_OFFSET
+    # Otherwise occurred_at is omitted and the Hive stamps its receipt time.
+    _queue.append(event)
 
 
 # -- Wi-Fi passive scan ---------------------------------------------------
@@ -274,9 +309,13 @@ def main():
     print("HexBee C3 scanner:", DEVICE, "->", HIVE_URL or "(no hive configured)")
     print("passive only — this device never probes or associates with targets")
 
+    if connect_wifi(sta):
+        sync_time()
+
     while True:
         cycle_start = time.time()
-        connect_wifi(sta)
+        if connect_wifi(sta) and not _time_synced:
+            sync_time()      # retry once the uplink comes back
 
         wifi_hits = scan_wifi(sta)
         ble_hits = scan_ble(ble, BLE_SECONDS) if ble else 0
