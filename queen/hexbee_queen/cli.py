@@ -528,39 +528,11 @@ def cmd_pivot_connect(args) -> int:
     return code
 
 
-# -- Picos ----------------------------------------------------------------
+# -- sealing --------------------------------------------------------------
 
-def cmd_pico_seal(args) -> int:
-    import logging
-
-    from . import pico
-
-    client = _load_client()
-    key = _ingest_key(args)
-    if not key:
-        print("An ingest key is required (--key or HEXBEE_INGEST_KEY).",
-              file=sys.stderr)
-        return 1
-    token_key = pico.load_token_key(args.token_key)
-    if not token_key:
-        print("No token key found — seals will be recorded but marked "
-              "unverified. Provision one with `hexbee-queen pico provision`.",
-              file=sys.stderr)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
-    try:
-        pico.watch_sentinel(client, port=args.port, ingest_key=key,
-                            key=token_key, case_id=args.case,
-                            operator=args.operator or "",
-                            witness=args.witness or "",
-                            anchor=not args.no_anchor)
-    except RuntimeError as exc:
-        print(f"{exc}", file=sys.stderr)
-        return 1
-    return 0
-
-
-def cmd_pico_hid(args) -> int:
-    from . import pico
+def cmd_seal(args) -> int:
+    """Declare a case sealed and anchor the evidence log at that moment."""
+    from .seal import seal_case
 
     client = _load_client()
     key = _ingest_key(args)
@@ -568,47 +540,30 @@ def cmd_pico_hid(args) -> int:
         print("An ingest key is required (--key or HEXBEE_INGEST_KEY).",
               file=sys.stderr)
         return 1
-    try:
-        result = pico.import_hid_log(client, args.log, ingest_key=key,
-                                     case_id=args.case,
-                                     operator=args.operator or "",
-                                     target=args.target or "",
-                                     skip_disarmed=not args.include_disarmed)
-    except RuntimeError as exc:
-        print(f"{exc}", file=sys.stderr)
-        return 1
-    print(f"{result['entries']} deployment(s) read, {result['stored']} written "
-          f"to the evidence chain.")
-    for entry in result["deployments"]:
-        print(f"  {entry['name']:<28} {entry['result']:<10} "
-              f"{entry.get('fingerprint', '')}")
-    return 0
+    operator = args.operator or getpass.getuser()
 
+    result = seal_case(client, args.case_id, operator=operator, ingest_key=key,
+                       witness=args.witness or "", note=args.note or "")
+    if not result["chain_ok"]:
+        print("REFUSING TO SEAL: the evidence chain does not verify. "
+              "Investigate before declaring this case complete.",
+              file=sys.stderr)
+        return 2
 
-def cmd_pico_provision(args) -> int:
-    """Generate a Sentinel token key: one copy for the token, one for here."""
-    import os
-    import secrets
-
-    from . import pico
-
-    key = secrets.token_hex(32).encode()
-    local = Path(args.out or (Path.home() / ".hexbee-sentinel-key"))
-    local.write_bytes(key)
-    try:
-        local.chmod(0o600)
-    except OSError:
-        pass
-    print(f"Token key written to {local} (keep this — it is how seals are "
-          f"verified).")
-    print("\nNow copy the same key onto the token:")
-    print("  1. Hold the seal button (GP16) while plugging the Pico in — that")
-    print("     leaves CIRCUITPY writable by this host.")
-    print(f"  2. Copy the key file to the token as /sentinel_key.txt:")
-    print(f"       cp {local} /media/$USER/CIRCUITPY/sentinel_key.txt")
-    print("  3. Unplug and replug without holding the button.")
-    print("\nA token without this file still seals, but every seal is marked "
-          "unsigned in the evidence record.")
+    print(f"Case {args.case_id} sealed by {result['operator']}"
+          + (f" before {result['witness']}" if result["witness"] else ""))
+    print(f"  evidence chain: verified over {result['records']} record(s)")
+    print(f"  head hash:      {result['head_hash']}")
+    print(f"  signature:      {result['signature']}")
+    if args.output:
+        Path(args.output).write_text(json.dumps(result["anchor"], indent=2),
+                                     encoding="utf-8")
+        print(f"\nAnchor receipt written to {args.output}")
+        print("Keep it somewhere separate from the Hive. It is how you show "
+              "later that the log has not been rewritten since.")
+    else:
+        print("\nSave the anchor somewhere separate with -o <file>; it is how "
+              "you prove later that the log has not been rewritten.")
     return 0
 
 
@@ -838,29 +793,15 @@ def main(argv: list[str] | None = None) -> int:
                          "~150 MB on the Pi (ingest keeps running)")
     pc.set_defaults(fn=cmd_pivot_connect)
 
-    pk = sub.add_parser("pico", help="Pico tokens (Sentinel seal / Stinger HID)"
-                        ).add_subparsers(dest="pico_cmd", required=True)
-    pks = pk.add_parser("seal", help="listen for evidence seals from the Sentinel")
-    pks.add_argument("--port", help="serial device (default: autodetect)")
-    pks.add_argument("--token-key", help="path to the token's key file")
-    pks.add_argument("--case", type=int)
-    pks.add_argument("--operator")
-    pks.add_argument("--witness", help="name of the witness present at sealing")
-    pks.add_argument("--no-anchor", action="store_true",
-                     help="do not request a signed chain anchor per seal")
-    pks.add_argument("--key", help="Hive ingest key")
-    pks.set_defaults(fn=cmd_pico_seal)
-    pkh = pk.add_parser("hid", help="import the Stinger's deploy.log")
-    pkh.add_argument("log", help="path to deploy.log on the Pico's drive")
-    pkh.add_argument("--case", type=int)
-    pkh.add_argument("--operator")
-    pkh.add_argument("--target", help="hostname the payload was deployed against")
-    pkh.add_argument("--include-disarmed", action="store_true")
-    pkh.add_argument("--key")
-    pkh.set_defaults(fn=cmd_pico_hid)
-    pkp = pk.add_parser("provision", help="generate a Sentinel token key")
-    pkp.add_argument("-o", "--out")
-    pkp.set_defaults(fn=cmd_pico_provision)
+    sl = sub.add_parser("seal", help="declare a case sealed and anchor the "
+                                     "evidence log at that moment")
+    sl.add_argument("case_id", type=int)
+    sl.add_argument("--operator", help="who is sealing it (default: you)")
+    sl.add_argument("--witness", help="name of the witness present")
+    sl.add_argument("--note")
+    sl.add_argument("-o", "--output", help="save the anchor receipt here")
+    sl.add_argument("--key", help="Hive ingest key")
+    sl.set_defaults(fn=cmd_seal)
 
     # -- deliverables ------------------------------------------------------
     en = sub.add_parser("engagement", help="engagement deliverables").add_subparsers(

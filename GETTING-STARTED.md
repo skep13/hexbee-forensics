@@ -106,6 +106,6 @@ limitation is far better than quietly compromising the evidence.
 |---|---|
 | Your laptop | The analyst side — examining evidence, writing reports |
 | A Raspberry Pi (optional) | The Hive — collects and stores evidence on the network |
-| ESP32 / Pico boards (optional) | Field sensors, USB tooling, evidence sealing |
+| ESP32 boards (optional) | Field sensors and wireless red-team tooling |
 
 You do not need any of the hardware to start. Everything runs on one laptop.

@@ -76,12 +76,11 @@ built-in manual.
 | [netmon/](netmon/) | **Netmon** passive network monitoring for the Hive host (`hexbee-netmon`) — stdlib packet decoder, 6 IDS rules, passive host/service inventory, active diagnostics, rotating PCAP to the HDD |
 | [queen/](queen/) | Queen analyst CLI (`hexbee-queen`) — cases, incidents, search, IOCs, AI, reports over the Hive REST API, plus scope-gated engagement tooling: **nmap recon**, **Responder bridge**, **BloodHound ingest**, **drop-box pivot**, **auto pentest report** (HTML/PDF) |
 | [scout/firmware/](scout/firmware/) | ESP32-S3 ESP-IDF firmware: Wi-Fi, MQTT QoS 1, offline event buffering, heartbeat, **USB MSC host acquisition** (prefix hashing, bounded walk) with a simulation fallback |
-| [scout/c3-scanner/](scout/c3-scanner/) | ESP32-C3 MicroPython **passive wireless scanner** — Wi-Fi beacons and BLE advertisements into the evidence chain and onto the offline map |
+| [scout/c3-stinger/](scout/c3-stinger/) | **Stinger** — ESP32-C3 wireless implant with three modes: passive recon, rogue AP with captive portal, and BLE keystroke injection |
 | [scout/simulator/](scout/simulator/) | Python Scout simulator — drives the whole platform with realistic scenarios, no hardware needed |
-| [pico/](pico/) | Two Raspberry Pi Picos: **Stinger** (CircuitPython HID payload deployer, arm-jumper gated) and **Sentinel** (hardware evidence-seal token with HMAC-signed, replay-resistant seals) |
 | [docs/](docs/) | [Overview](docs/OVERVIEW.md), architecture, deployment, Comb, forensics, and API reference |
 | [RECOMMENDATIONS.md](RECOMMENDATIONS.md) | What each added feature does, how it fits the hardware, and its limitations |
-| [tests/](tests/) | pytest suite (233 tests) across Hive core, IOC, scope, ATT&CK, syslog/intel, Comb, Netmon, Forager, Queen tooling, and the web UI |
+| [tests/](tests/) | pytest suite (359 tests) across Hive core, IOC, scope, ATT&CK, syslog/intel, Comb, Netmon, Forager, Queen tooling, and the web UI |
 
 ## Quick start (development, any OS)
 
@@ -197,7 +196,7 @@ rule-based fallback), iPhone field PWA, and the Scout simulator.
 **233 passing tests.**
 
 Written but not yet validated on hardware: the Scout's USB MSC host
-acquisition, the ESP32-C3 scanner, and both Pico firmwares. See
+acquisition and the ESP32-C3 Stinger. See
 [RECOMMENDATIONS.md → Limitations](RECOMMENDATIONS.md#limitations) for the
 full picture, including the capability limits that are deliberate.
 

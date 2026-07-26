@@ -256,7 +256,7 @@ def how_to(engine: LocalAI, question: str) -> dict:
                        "about scope, recon, Responder, BloodHound, Comb, "
                        "YARA, Forager, memory acquisition, Netmon, syslog, "
                        "threat intel, IOCs, reports, evidence sealing, or the "
-                       "Picos."),
+                       "ESP32 sensors."),
             "engine": "knowledge-base",
             "sources": [],
             "grounded": False,

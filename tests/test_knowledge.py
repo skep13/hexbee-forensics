@@ -249,7 +249,7 @@ def test_how_to_without_a_model_returns_the_manual_verbatim():
     result = how_to(OfflineAI(), "how do I seal a case with a witness")
     assert result["grounded"] is True
     assert result["engine"] == "knowledge-base"
-    assert "hexbee-queen pico seal" in result["answer"]
+    assert "hexbee-queen seal" in result["answer"]
     assert "recipe-seal" in result["sources"]
 
 
@@ -273,7 +273,7 @@ def test_ask_routes_usage_questions_to_the_manual(db):
 
     result = ask(db, OfflineAI(), "how do I seal a case with a witness")
     assert result["engine"] == "knowledge-base"
-    assert "pico seal" in result["answer"]
+    assert "hexbee-queen seal" in result["answer"]
 
 
 def test_ask_routes_evidence_questions_to_the_evidence(db):

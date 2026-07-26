@@ -102,12 +102,16 @@ KEYWORDS: dict[str, list[str]] = {
     "recipe-netmon": ["passive monitoring", "network monitoring", "sniff",
                       "packet capture", "ids", "intrusion detection",
                       "watch traffic", "pcap", "arp spoofing", "port scan"],
-    "recipe-c3-scanner": ["esp32", "c3", "wireless scanner", "wifi scan",
-                          "bluetooth", "ble", "beacon"],
-    "recipe-hid": ["badusb", "rubber ducky", "duckyscript", "keystroke",
-                   "hid", "stinger", "payload", "pico 1"],
-    "recipe-seal": ["sentinel", "pico 2", "witness", "seal evidence",
-                    "close case formally", "tamper", "anchor case"],
+    "recipe-stinger-scan": ["esp32", "c3", "wireless scanner", "wifi scan",
+                            "bluetooth", "ble", "beacon", "passive recon"],
+    "recipe-stinger-hid": ["badusb", "rubber ducky", "duckyscript", "keystroke",
+                           "hid", "stinger", "payload", "bluetooth keyboard",
+                           "ble hid", "keystroke injection"],
+    "recipe-stinger-portal": ["rogue ap", "evil twin", "captive portal",
+                              "fake wifi", "harvest credentials",
+                              "phishing portal", "credential harvest"],
+    "recipe-seal": ["witness", "seal evidence", "close case formally",
+                    "tamper", "anchor case", "sign off"],
     "recipe-memory": ["ram dump", "memory dump", "volatility", "lime",
                       "winpmem", "capture ram", "memory image"],
     "recipe-diagnostics": ["health", "smart", "temperature", "disk full",
@@ -549,53 +553,84 @@ RECIPES: list[Doc] = [
     ),
     Doc(
         id="recipe-seal",
-        title="Seal a case physically in front of a witness",
+        title="Seal a case in front of a witness",
         kind="recipe",
         body=(
-            "The Sentinel is the second Pico: a hardware token that signs each "
-            "press with a key held in its own flash. Pressing it writes a "
-            "case_seal event and requests a signed chain anchor, so the seal "
-            "is attributable to that specific physical token rather than "
-            "merely proving a button was pressed. Provision the key once, then "
-            "run the listener during the sealing."
+            "Sealing records that you declared a case complete at a stated "
+            "moment, before a stated witness, and pins that to the state of "
+            "the evidence log by taking a signed chain anchor. The anchor is "
+            "what gives it force: anyone holding it can show later that the "
+            "log has not been rewritten since. Save it somewhere separate "
+            "from the Hive — an anchor stored only alongside the thing it "
+            "protects proves nothing. Sealing refuses if the chain does not "
+            "verify."
         ),
         commands=[
-            "hexbee-queen pico provision",
-            "hexbee-queen pico seal --case 3 --operator jacob --witness 'DS Miller'",
+            "hexbee-queen verify",
+            "hexbee-queen seal 3 --operator jacob --witness 'DS Miller' "
+            "-o seal-HB-2026-0003.json",
         ],
     ),
     Doc(
-        id="recipe-hid",
-        title="Deploy a USB HID payload and record it",
+        id="recipe-stinger-hid",
+        title="Inject keystrokes into a host over Bluetooth",
         kind="recipe",
         body=(
-            "The Stinger is the first Pico. It will not type unless the arm "
-            "jumper (GP15 to GND) is closed — without it the board enumerates, "
-            "reports what it would have done, and stops. It has no radio, so "
-            "it logs to its own drive and you import that afterwards. Copy the "
-            "chosen payload to the drive as payload.txt."
+            "The ESP32-C3 Stinger advertises as a Bluetooth keyboard and "
+            "types a DuckyScript payload into whatever pairs with it. There "
+            "is no cable: you need radio range rather than physical access to "
+            "a port. The finding is a host that accepts an unauthenticated "
+            "HID connection — a host that demands confirmed pairing is not "
+            "vulnerable to this, and the report should say so. Deployments "
+            "report themselves to the Hive over Wi-Fi as hid_deployment "
+            "events, so nothing has to be imported afterwards. Set "
+            "mode = 'hid' in config.py before flashing."
         ),
         commands=[
-            "cp payloads/00-proof-of-execution.txt /media/$USER/CIRCUITPY/payload.txt",
-            "hexbee-queen pico hid /media/$USER/CIRCUITPY/deploy.log --case 3 "
-            "--target RECEPTION-PC",
+            "cp payloads/00-proof-of-execution.txt payload.txt",
+            "mpremote connect /dev/ttyACM0 fs cp payload.txt :payload.txt",
+            "mpremote connect /dev/ttyACM0 reset",
         ],
     ),
     Doc(
-        id="recipe-c3-scanner",
-        title="Deploy the ESP32-C3 wireless scanner",
+        id="recipe-stinger-portal",
+        title="Stand up a rogue access point with a captive portal",
         kind="recipe",
         body=(
-            "MicroPython. Scans Wi-Fi beacons and BLE advertisements "
-            "passively — it never probes or associates with what it observes. "
-            "Sightings become wireless_sighting events and plot on the offline "
-            "map. Set lat/lon in the config if the scanner sits at a fixed "
-            "point."
+            "The Stinger broadcasts an open access point, answers every DNS "
+            "query with its own address so any request triggers the target's "
+            "captive-portal check, and serves a login page. It demonstrates "
+            "one finding: that people will type credentials into a network "
+            "that merely looks familiar. Captured credentials are recorded as "
+            "a SHA-256 fingerprint by default, not the password itself — turn "
+            "portal_include_material on only if your rules of engagement "
+            "require the material. This transmits, so it must be inside your "
+            "authorised scope. Set mode = 'portal' and portal_ssid in "
+            "config.py before flashing."
+        ),
+        commands=[
+            "mpremote connect /dev/ttyACM0 fs cp config.py :config.py",
+            "mpremote connect /dev/ttyACM0 reset",
+            "hexbee-queen search --event-type credential_capture",
+        ],
+    ),
+    Doc(
+        id="recipe-stinger-scan",
+        title="Deploy the ESP32-C3 for passive wireless recon",
+        kind="recipe",
+        body=(
+            "Scan mode listens only — it never probes and never associates "
+            "with what it observes. Wi-Fi beacons and BLE advertisements "
+            "become wireless_sighting events and plot on the offline map. "
+            "This is the mode to leave running before an engagement to learn "
+            "what is there. Set lat/lon in the config if the board sits at a "
+            "fixed point."
         ),
         commands=[
             "esptool.py --chip esp32c3 write_flash -z 0 ESP32_GENERIC_C3.bin",
             "mpremote connect /dev/ttyACM0 fs cp config.py :config.py",
             "mpremote connect /dev/ttyACM0 fs cp main.py :main.py",
+            "mpremote connect /dev/ttyACM0 fs cp link.py :link.py",
         ],
     ),
     Doc(

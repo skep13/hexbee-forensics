@@ -89,7 +89,7 @@ EVENT_SEVERITY = {
     "ad_recon_finding": 2,
     "hid_deployment": 2,
     "pivot_session": 1,
-    # Physical case seal (Pico button -> C3 -> Hive)
+    # Case seal: an investigator declaring a case complete
     "case_seal": 1,
 }
 

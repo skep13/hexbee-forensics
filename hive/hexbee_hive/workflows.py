@@ -311,11 +311,13 @@ WORKFLOWS: list[Workflow] = [
             ),
             Step(
                 "Seal the case",
-                "If you have the Sentinel token, pressing it in front of a "
-                "witness produces a signed record of who sealed it and when. "
-                "That is much stronger than a note saying you did.",
-                ["hexbee-queen pico seal --case 1 --operator you "
-                 "--witness 'their name'"],
+                "Records that you declared it complete at a stated moment "
+                "before a stated witness, and takes a signed anchor over the "
+                "evidence log as it stood. Keep that anchor somewhere other "
+                "than the Hive — an anchor stored beside the thing it "
+                "protects proves nothing.",
+                ["hexbee-queen seal 1 --operator you --witness 'their name' "
+                 "-o seal.json"],
             ),
             Step(
                 "Export a signed bundle",

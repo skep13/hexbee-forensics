@@ -48,12 +48,12 @@ CIRCUITPYTHON_MODULES = {
 }
 
 FIRMWARE = [
-    ("scout/c3-scanner/main.py", MICROPYTHON_MODULES),
-    ("scout/c3-scanner/config.example.py", MICROPYTHON_MODULES),
-    ("pico/badusb/boot.py", CIRCUITPYTHON_MODULES),
-    ("pico/badusb/code.py", CIRCUITPYTHON_MODULES),
-    ("pico/sentinel/boot.py", CIRCUITPYTHON_MODULES),
-    ("pico/sentinel/code.py", CIRCUITPYTHON_MODULES),
+    ("scout/c3-stinger/main.py", MICROPYTHON_MODULES),
+    ("scout/c3-stinger/link.py", MICROPYTHON_MODULES),
+    ("scout/c3-stinger/scanner.py", MICROPYTHON_MODULES),
+    ("scout/c3-stinger/portal.py", MICROPYTHON_MODULES),
+    ("scout/c3-stinger/hid.py", MICROPYTHON_MODULES),
+    ("scout/c3-stinger/config.example.py", MICROPYTHON_MODULES),
 ]
 
 
@@ -71,16 +71,19 @@ def test_firmware_parses_and_imports_only_what_the_board_has(rel, available):
     except SyntaxError as exc:
         pytest.fail(f"{rel} would not load: line {exc.lineno}: {exc.msg}")
 
+    # Modules that live on the board's own filesystem alongside this file.
+    local = {p.stem for p in path.parent.glob("*.py")} | {"config"}
+
     missing = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 root = alias.name.split(".")[0]
-                if root not in available and root != "config":
+                if root not in available and root not in local:
                     missing.append(alias.name)
         elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
             root = node.module.split(".")[0]
-            if root not in available and root != "config":
+            if root not in available and root not in local:
                 missing.append(node.module)
     assert not missing, (
         f"{rel} imports modules the runtime does not provide: "
@@ -181,13 +184,14 @@ def test_scout_event_types_are_all_known_to_the_hive():
 # scan_wifi() and scan_ble() and framed by _enqueue().
 # =====================================================================
 
-C3_SOURCE = (ROOT / "scout" / "c3-scanner" / "main.py").read_text(encoding="utf-8")
+C3_SOURCE = (ROOT / "scout" / "c3-stinger" / "link.py").read_text(encoding="utf-8")
 
 
-def c3_event(payload: dict) -> dict:
-    """Reproduce _enqueue() from the C3 firmware."""
-    return {"device": "C3-Scanner-01", "event_type": "wireless_sighting",
-            "payload": payload | {"device_name": "C3-Scanner-01"}}
+def c3_event(payload: dict, event_type: str = "wireless_sighting") -> dict:
+    """Reproduce link.enqueue() from the Stinger firmware."""
+    return {"device": "C3-Stinger-01", "event_type": event_type,
+            "payload": payload | {"device_name": "C3-Stinger-01",
+                                  "time_synced": False}}
 
 
 def test_c3_wifi_sighting_is_accepted():
@@ -235,16 +239,18 @@ def test_c3_only_claims_a_time_when_its_clock_was_set():
     Omitting occurred_at instead lets the Hive record its own receipt time,
     which is at least true.
     """
-    enqueue = re.search(r"def _enqueue\(.*?(?=\n(?:def |# --))", C3_SOURCE, re.S)
-    assert enqueue, "could not find _enqueue in the C3 firmware"
+    enqueue = re.search(r"def enqueue\(.*?(?=\n(?:def |# --))", C3_SOURCE, re.S)
+    assert enqueue, "could not find enqueue() in the C3 firmware"
     body = enqueue.group(0)
-    assert "_time_synced" in body, (
+    assert "if _time_synced" in body, (
         "the C3 sets occurred_at unconditionally, but the board has no RTC — "
         "unsynced, every sighting would be timestamped 2000-01-01")
-    # The epoch conversion must sit inside the guarded branch.
-    guard = body.index("if _time_synced")
-    assert body.index("_EPOCH_OFFSET", guard) > guard, (
-        "the epoch conversion happens outside the clock-trusted guard")
+    # The epoch conversion must sit inside the guarded branch, not before it.
+    before_guard = body[:body.index("if _time_synced")]
+    assert "_EPOCH_OFFSET" not in before_guard, (
+        "the epoch conversion happens before the clock-trusted guard")
+    assert "occurred_at" not in before_guard, (
+        "occurred_at is set before the clock is known to be good")
 
 
 def test_c3_attempts_a_time_sync():
@@ -280,142 +286,12 @@ def test_scout_only_claims_a_time_when_its_clock_was_set():
 
 def test_event_without_a_timestamp_is_accepted_and_stamped():
     """The behaviour both guards rely on."""
-    result = normalize({"device": "C3-Scanner-01",
+    result = normalize({"device": "C3-Stinger-01",
                         "event_type": "wireless_sighting",
                         "payload": {"kind": "wifi_ap", "time_synced": False}})
     assert result["occurred_at"].endswith("Z")
     assert result["occurred_at"] > "2020-01-01T00:00:00Z", (
         "an event with no timestamp should get the Hive's receipt time")
-
-
-# =====================================================================
-# Pico Sentinel — the seal line format in code.py must round-trip through
-# the Queen's parser and verify. This is the whole feature: a seal that
-# cannot be verified is worse than no seal.
-# =====================================================================
-
-SENTINEL_SOURCE = (ROOT / "pico" / "sentinel" / "code.py").read_text(encoding="utf-8")
-
-
-def sentinel_seal_line(device, kind, counter, nonce, head, sig, uptime=12.3):
-    """Reproduce build_seal() from the Sentinel firmware, format string and
-    field order included."""
-    return ("HEXBEE-SEAL v=1 device=%s kind=%s counter=%d nonce=%s "
-            "head=%s sig=%s uptime=%.1f" %
-            (device, kind, counter, nonce, head or "-", sig, uptime))
-
-
-def test_seal_line_format_matches_the_firmware():
-    """If the firmware's format string changes, this catches it."""
-    for fragment in ("HEXBEE-SEAL v=1", "device=%s", "kind=%s", "counter=%d",
-                     "nonce=%s", "head=%s", "sig=%s"):
-        assert fragment in SENTINEL_SOURCE, (
-            f"the Queen's parser expects {fragment!r} in the seal line")
-
-
-def test_seal_round_trips_from_firmware_format_to_verification():
-    import hashlib
-    import hmac
-    import sys
-
-    sys.path.insert(0, str(ROOT / "queen"))
-    from hexbee_queen.pico import parse_seal, seal_event, verify_seal
-
-    key = b"0123456789abcdef" * 4
-    device, kind, counter = "e6614103b7284f21", "case_seal", 7
-    nonce, head = "deadbeefcafe1234", "a" * 64
-    # Signed exactly as the firmware does: pipe-separated, in this order.
-    material = "%s|%s|%d|%s|%s" % (device, kind, counter, nonce, head)
-    sig = hmac.new(key, material.encode(), hashlib.sha256).hexdigest()
-
-    seal = parse_seal(sentinel_seal_line(device, kind, counter, nonce, head, sig))
-    assert seal is not None, "the Queen could not parse the firmware's output"
-    ok, reason = verify_seal(seal, key)
-    assert ok, f"a genuine seal failed verification: {reason}"
-
-    event = seal_event(seal, ok, reason, "Pico-Sentinel", 1, "operator")
-    result = accepted(event)
-    assert result["event_type"] == "case_seal"
-    assert result["payload"]["signature_verified"] is True
-
-
-def test_unsigned_seal_round_trips_and_is_marked_unverified():
-    """A board without a provisioned key still seals — honestly."""
-    import sys
-
-    sys.path.insert(0, str(ROOT / "queen"))
-    from hexbee_queen.pico import parse_seal, verify_seal
-
-    seal = parse_seal(sentinel_seal_line("abc", "case_seal", 1, "n", "", "unsigned"))
-    assert seal is not None and seal["head"] == ""
-    ok, reason = verify_seal(seal, b"key")
-    assert not ok and "unsigned" in reason
-
-
-def test_sentinel_hmac_matches_a_reference_implementation():
-    """The firmware hand-rolls HMAC because CircuitPython has no hmac module.
-    A silent mismatch would make every seal fail verification with no
-    visible cause."""
-    import hashlib
-    import hmac as reference
-
-    block = 64
-
-    def firmware_hmac(key, message):
-        if len(key) > block:
-            key = hashlib.sha256(key).digest()
-        key = key + b"\x00" * (block - len(key))
-        outer = bytes(b ^ 0x5C for b in key)
-        inner = bytes(b ^ 0x36 for b in key)
-        inner_digest = hashlib.sha256(inner + message).digest()
-        return hashlib.sha256(outer + inner_digest).hexdigest()
-
-    for key, message in [(b"k" * 32, b"abc"), (b"short", b"m"),
-                         (b"x" * 100, b"key longer than the block"),
-                         (b"", b""), (bytes(range(64)), b"exact block size")]:
-        assert firmware_hmac(key, message) == reference.new(
-            key, message, hashlib.sha256).hexdigest()
-
-
-# =====================================================================
-# Pico Stinger — deploy.log is written on the board and read by the Queen.
-# =====================================================================
-
-STINGER_SOURCE = (ROOT / "pico" / "badusb" / "code.py").read_text(encoding="utf-8")
-
-
-def test_deploy_log_line_format_matches_the_firmware():
-    assert '"%s\\t%s\\t%s\\tlines=%d\\tkeys=%d\\tuptime=%.1f\\n"' in STINGER_SOURCE \
-        or "%s\\t%s\\t%s\\tlines=%d" in STINGER_SOURCE, (
-            "the Queen's importer expects tab-separated deploy.log lines")
-
-
-def test_deploy_log_round_trips(tmp_path):
-    import sys
-
-    sys.path.insert(0, str(ROOT / "queen"))
-    from hexbee_queen.pico import hid_event, parse_hid_log
-
-    # Written exactly as log_deployment() in the Stinger firmware does.
-    line = "%s\t%s\t%s\tlines=%d\tkeys=%d\tuptime=%.1f\n" % (
-        "proof-of-execution", "ok", "fnv1a:1a2b3c4d", 8, 137, 5.2)
-    log = tmp_path / "deploy.log"
-    log.write_text(line, encoding="utf-8")
-
-    entries = parse_hid_log(log)
-    assert len(entries) == 1
-    assert entries[0]["name"] == "proof-of-execution"
-    assert entries[0]["keys"] == 137
-
-    result = accepted(hid_event(entries[0], "Pico-Stinger", 1, "operator"))
-    assert result["event_type"] == "hid_deployment"
-    assert result["severity"] == 2
-
-
-def test_disarmed_run_is_still_logged():
-    """A disarmed board records that it did nothing — absence of a log line
-    would be indistinguishable from the board never being plugged in."""
-    assert 'log_deployment(name, "disarmed"' in STINGER_SOURCE
 
 
 # =====================================================================
@@ -426,7 +302,8 @@ def test_disarmed_run_is_still_logged():
 FIRMWARE_EVENT_TYPES = [
     ("usb_inserted", 1), ("usb_removed", 0), ("file_metadata", 0),
     ("usb_scan", 1), ("wireless_sighting", 0), ("case_seal", 1),
-    ("hid_deployment", 2), ("heartbeat", 0), ("scout_online", 0),
+    ("hid_deployment", 2), ("credential_capture", 3), ("recon_finding", 1),
+    ("heartbeat", 0), ("scout_online", 0),
 ]
 
 

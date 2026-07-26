@@ -214,8 +214,6 @@ def check_optional_python(report: Report) -> None:
         ("psutil", "psutil", "Richer process and network detail when "
                              "collecting from a live computer.",
          "fuller live-response collection"),
-        ("serial", "pyserial", "Talking to the Pico evidence-seal token over "
-                               "USB.", "hardware case sealing"),
     ]
     for module, package, what, enables in optional:
         try:

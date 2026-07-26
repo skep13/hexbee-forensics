@@ -466,27 +466,11 @@
       ]
     },
     {
-      "id": "cmd-hexbee-queen-pico-seal",
-      "title": "hexbee-queen pico seal",
-      "body": "listen for evidence seals from the Sentinel\nOptions: --port \u2014 serial device (default: autodetect); --token-key \u2014 path to the token's key file; --case; --operator; --witness \u2014 name of the witness present at sealing; --no-anchor \u2014 do not request a signed chain anchor per seal; --key \u2014 Hive ingest key",
+      "id": "cmd-hexbee-queen-seal",
+      "title": "hexbee-queen seal",
+      "body": "declare a case sealed and anchor the evidence log at that moment\nArguments: CASE_ID\nOptions: --operator \u2014 who is sealing it (default: you); --witness \u2014 name of the witness present; --note; -o, --output \u2014 save the anchor receipt here; --key \u2014 Hive ingest key",
       "commands": [
-        "hexbee-queen pico seal"
-      ]
-    },
-    {
-      "id": "cmd-hexbee-queen-pico-hid",
-      "title": "hexbee-queen pico hid",
-      "body": "import the Stinger's deploy.log\nArguments: LOG \u2014 path to deploy.log on the Pico's drive\nOptions: --case; --operator; --target \u2014 hostname the payload was deployed against; --include-disarmed; --key",
-      "commands": [
-        "hexbee-queen pico hid"
-      ]
-    },
-    {
-      "id": "cmd-hexbee-queen-pico-provision",
-      "title": "hexbee-queen pico provision",
-      "body": "generate a Sentinel token key\nOptions: -o, --out",
-      "commands": [
-        "hexbee-queen pico provision"
+        "hexbee-queen seal"
       ]
     },
     {

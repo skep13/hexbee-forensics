@@ -1,13 +1,11 @@
-"""Queen-side engagement tooling: recon, responder, bloodhound, pivot, picos."""
+"""Queen-side engagement tooling: recon, responder, bloodhound, pivot."""
 
-import hashlib
-import hmac
 import json
 import zipfile
 
 import pytest
 
-from hexbee_queen import bloodhound, pico, pivot, recon
+from hexbee_queen import bloodhound, pivot, recon
 from hexbee_queen import scope as queen_scope
 
 
@@ -276,91 +274,3 @@ def test_pivot_session_event_shape():
     event = pivot.session_event("Queen-Pivot", "opened", 2222, case_id=4)
     assert event["event_type"] == "pivot_session"
     assert event["payload"]["state"] == "opened"
-
-
-# -- picos -----------------------------------------------------------------
-
-SEAL_KEY = b"0123456789abcdef" * 4
-
-
-def make_seal(device="abc123", kind="case_seal", counter=1, nonce="deadbeef",
-              head="head1", key=SEAL_KEY):
-    material = f"{device}|{kind}|{counter}|{nonce}|{head}"
-    sig = hmac.new(key, material.encode(), hashlib.sha256).hexdigest()
-    return (f"HEXBEE-SEAL v=1 device={device} kind={kind} counter={counter} "
-            f"nonce={nonce} head={head} sig={sig} uptime=12.3")
-
-
-def test_parse_and_verify_seal():
-    seal = pico.parse_seal(make_seal())
-    assert seal["device"] == "abc123" and seal["counter"] == 1
-    ok, reason = pico.verify_seal(seal, SEAL_KEY)
-    assert ok and "verified" in reason
-
-
-def test_seal_with_wrong_key_fails():
-    seal = pico.parse_seal(make_seal())
-    ok, reason = pico.verify_seal(seal, b"wrong-key")
-    assert not ok and "MISMATCH" in reason
-
-
-def test_unsigned_seal_is_reported_as_such():
-    line = "HEXBEE-SEAL v=1 device=x kind=case_seal counter=1 nonce=n head=- sig=unsigned"
-    seal = pico.parse_seal(line)
-    assert seal["head"] == ""
-    ok, reason = pico.verify_seal(seal, SEAL_KEY)
-    assert not ok and "unsigned" in reason
-
-
-def test_non_seal_lines_are_ignored():
-    assert pico.parse_seal("HEXBEE-SENTINEL ready device=x") is None
-    assert pico.parse_seal("garbage") is None
-    assert pico.parse_seal("HEXBEE-SEAL v=1 device=x") is None      # no counter
-
-
-def test_counter_guard_rejects_replays(tmp_path):
-    guard = pico.CounterGuard(tmp_path / "counters")
-    assert guard.check("tok", 1)[0] is True
-    assert guard.check("tok", 2)[0] is True
-    ok, reason = guard.check("tok", 2)
-    assert not ok and "backwards" in reason
-    assert guard.check("other-token", 1)[0] is True
-
-
-def test_counter_guard_persists(tmp_path):
-    path = tmp_path / "counters"
-    pico.CounterGuard(path).check("tok", 5)
-    assert pico.CounterGuard(path).check("tok", 5)[0] is False
-
-
-def test_seal_event_states_the_timestamp_source():
-    seal = pico.parse_seal(make_seal())
-    payload = pico.seal_event(seal, True, "ok", "Pico-Sentinel", 1,
-                              "jacob", witness="DS Miller")["payload"]
-    assert payload["signature_verified"] is True
-    assert payload["witness"] == "DS Miller"
-    assert "no real-time clock" in payload["timestamp_source"]
-
-
-def test_hid_log_import_skips_disarmed_runs(tmp_path):
-    log = tmp_path / "deploy.log"
-    log.write_text(
-        "proof-of-execution\tok\tfnv1a:1234\tlines=8\tkeys=120\tuptime=5.0\n"
-        "proof-of-execution\tdisarmed\tfnv1a:1234\n"
-        "host-enum\terror: boom\tfnv1a:abcd\tlines=2\tkeys=3\tuptime=6.0\n",
-        encoding="utf-8")
-    client = FakeClient()
-    result = pico.import_hid_log(client, log, ingest_key="k", case_id=2,
-                                 operator="jacob", target="RECEPTION-PC")
-    assert result["entries"] == 2               # the disarmed run is skipped
-    assert result["stored"] == 2
-    payload = client.ingested[0]["payload"]
-    assert client.ingested[0]["event_type"] == "hid_deployment"
-    assert payload["payload_name"] == "proof-of-execution"
-    assert payload["target_host"] == "RECEPTION-PC"
-    assert payload["keystrokes"] == 120
-
-
-def test_hid_log_missing_file_raises(tmp_path):
-    with pytest.raises(RuntimeError):
-        pico.parse_hid_log(tmp_path / "nope.log")

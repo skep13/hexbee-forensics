@@ -243,8 +243,6 @@ if [ "$MINIMAL" = "0" ]; then
     add_extra hexbee-forager psutil \
         "Richer process and network detail when collecting from a live
     computer."
-    add_extra hexbee-queen pyserial \
-        "Talks to the Pico evidence-seal token over USB."
     add_extra hexbee-hive segno \
         "Generates QR labels for evidence bags."
 fi
