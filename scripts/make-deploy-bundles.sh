@@ -91,6 +91,10 @@ echo "    1-usb-forager      run-from-stick collector (no install on target)"
 PI="$DEST/2-rpi-hive"
 mkdir -p "$PI"
 copy "$REPO_ROOT/hive" "$PI/"
+# pi-setup.sh installs ./forager and ./netmon by relative path, so both have to
+# travel with the bundle — shipping the script without the packages it installs
+# is a failure you only discover on the Pi, with no network to fix it.
+copy "$REPO_ROOT/forager" "$PI/"
 copy "$REPO_ROOT/netmon" "$PI/"          # raw capture is Linux-only: it lives here
 copy "$REPO_ROOT/scout/simulator" "$PI/"
 copy "$REPO_ROOT/scripts/demo_seed.py" "$PI/scripts/"
