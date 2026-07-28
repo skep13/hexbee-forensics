@@ -181,3 +181,81 @@ def test_forager_ships_into_hive(db, tmp_path):
     started = db.query_one(
         "SELECT COUNT(*) AS n FROM events WHERE event_type='collection_started'")
     assert started["n"] == 1
+
+
+# -- the device name has to satisfy the Hive that receives it --------------
+# macOS reports `Jacobs-MacBook-Air.local` and many Linux hosts report an FQDN.
+# The Hive's normalizer rejects dots, so the unsanitised default made it refuse
+# every event: 819 artifacts collected, 819 spooled, nothing stored.
+
+def test_default_device_name_is_accepted_by_the_hive_normalizer():
+    from hexbee_forager.agent import device_name
+    from hexbee_hive.normalize import _NAME_RE
+
+    assert _NAME_RE.match(device_name("Forager")), \
+        "the Forager's own default device name must pass the Hive's validation"
+
+
+@pytest.mark.parametrize("hostname", [
+    "Jacobs-MacBook-Air.local",     # macOS mDNS suffix
+    "pi.lan",                       # short domain
+    "host.corp.example.com",        # full FQDN
+    "weiße-kiste",             # non-ASCII
+    "...",                          # degenerate
+])
+def test_device_name_sanitises_every_hostname_shape(hostname, monkeypatch):
+    import socket
+    from hexbee_forager.agent import device_name
+    from hexbee_hive.normalize import _NAME_RE
+
+    monkeypatch.setattr(socket, "gethostname", lambda: hostname)
+    assert _NAME_RE.match(device_name("Forager"))
+
+
+def test_explicit_device_name_is_also_sanitised():
+    from hexbee_forager.agent import device_name
+    from hexbee_hive.normalize import _NAME_RE
+
+    assert _NAME_RE.match(device_name("Forager", "my host.local"))
+
+
+# -- a spooled collection must be replayable ------------------------------
+# The spool is JSONL because it is appended to as sends fail. `submit` used to
+# parse the whole file as one JSON document, so the retry path for every
+# offline collection failed on line 2.
+
+def test_submit_reads_the_jsonl_spool(tmp_path):
+    from hexbee_forager.cli import _load_events
+
+    spool = tmp_path / "spool.jsonl"
+    spool.write_text("".join(
+        json.dumps({"event_type": "process_snapshot", "device": "F-1",
+                    "payload": {"n": i}}) + "\n" for i in range(3)),
+        encoding="utf-8")
+
+    assert len(_load_events(spool)) == 3
+
+
+def test_submit_still_reads_a_single_json_document(tmp_path):
+    from hexbee_forager.cli import _load_events
+
+    doc = tmp_path / "collection.json"
+    doc.write_text(json.dumps([{"event_type": "process_snapshot"}] * 2),
+                   encoding="utf-8")
+    assert len(_load_events(doc)) == 2
+
+    wrapped = tmp_path / "wrapped.json"
+    wrapped.write_text(json.dumps({"events": [{"event_type": "x"}]}),
+                       encoding="utf-8")
+    assert len(_load_events(wrapped)) == 1
+
+
+def test_submit_survives_a_truncated_spool_line(tmp_path):
+    """A spool killed mid-write must not cost the events already in it."""
+    from hexbee_forager.cli import _load_events
+
+    spool = tmp_path / "partial.jsonl"
+    spool.write_text(json.dumps({"event_type": "a", "device": "F-1"}) + "\n"
+                     + '{"event_type": "b", "devi',
+                     encoding="utf-8")
+    assert len(_load_events(spool)) == 1

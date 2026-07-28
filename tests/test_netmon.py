@@ -262,3 +262,68 @@ def test_ping_of_empty_host_is_unreachable():
 
     result = diagnostics.ping("")
     assert result["reachable"] is False and result["loss_pct"] == 100.0
+
+
+# -- ping parsing ----------------------------------------------------------
+# macOS reports a *reachable* host with no per-reply lines when the wait
+# deadline is short, which once made `hexbee-netmon check` raise a severity-3
+# gateway_unreachable alert against a gateway answering in 4 ms.
+
+MACOS_PING_NO_REPLY_LINES = """\
+PING 192.168.1.254 (192.168.1.254): 56 data bytes
+
+--- 192.168.1.254 ping statistics ---
+2 packets transmitted, 2 packets received, 0.0% packet loss, 2 packets out of wait time
+round-trip min/avg/max/stddev = 3.256/3.325/3.394/0.069 ms
+"""
+
+LINUX_PING_NORMAL = """\
+PING 10.0.0.1 (10.0.0.1) 56(84) bytes of data.
+64 bytes from 10.0.0.1: icmp_seq=1 ttl=64 time=1.20 ms
+64 bytes from 10.0.0.1: icmp_seq=2 ttl=64 time=1.40 ms
+
+--- 10.0.0.1 ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1001ms
+rtt min/avg/max/mdev = 1.200/1.300/1.400/0.100 ms
+"""
+
+UNREACHABLE_PING = """\
+PING 10.9.9.9 (10.9.9.9): 56 data bytes
+
+--- 10.9.9.9 ping statistics ---
+3 packets transmitted, 0 packets received, 100.0% packet loss
+"""
+
+
+def _ping_with_output(monkeypatch, text):
+    from hexbee_netmon import diagnostics
+    monkeypatch.setattr(diagnostics, "_run", lambda *a, **k: text)
+    return diagnostics.ping("host")
+
+
+def test_ping_trusts_the_summary_when_there_are_no_reply_lines(monkeypatch):
+    result = _ping_with_output(monkeypatch, MACOS_PING_NO_REPLY_LINES)
+    assert result["reachable"] is True
+    assert result["loss_pct"] == 0.0
+    assert result["avg_ms"] == 3.325      # recovered from min/avg/max
+
+
+def test_ping_parses_per_reply_timings_when_present(monkeypatch):
+    result = _ping_with_output(monkeypatch, LINUX_PING_NORMAL)
+    assert result["reachable"] is True
+    assert result["rtts_ms"] == [1.20, 1.40]
+    assert result["avg_ms"] == 1.3
+    assert result["loss_pct"] == 0.0
+
+
+def test_ping_still_reports_a_genuinely_dead_host(monkeypatch):
+    result = _ping_with_output(monkeypatch, UNREACHABLE_PING)
+    assert result["reachable"] is False
+    assert result["loss_pct"] == 100.0
+
+
+def test_ping_wait_flag_unit_matches_the_platform():
+    """BSD ping reads -W as milliseconds, GNU/Linux as seconds."""
+    from hexbee_netmon import diagnostics
+    expected = "1000" if diagnostics.IS_BSD_PING else "1"
+    assert diagnostics._PING_WAIT == expected

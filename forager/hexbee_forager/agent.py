@@ -76,14 +76,31 @@ def discover_config(hive_url: str | None = None, ingest_key: str | None = None) 
     return cfg
 
 
+
+def device_name(prefix: str, given: str | None = None) -> str:
+    """A device name the Hive will actually accept.
+
+    Hive device names are `[A-Za-z0-9_-]{1,64}`; hostnames frequently are not.
+    macOS reports `Jacobs-MacBook-Air.local` and many Linux hosts report an
+    FQDN, so the dotted default was rejected by the normalizer on every single
+    event — the agent collected hundreds of artifacts, shipped none of them,
+    and spooled the lot. That reads like a network fault and is not one.
+    """
+    import re
+    import socket
+
+    raw = given or socket.gethostname().split(".")[0]
+    cleaned = re.sub(r"[^A-Za-z0-9_-]", "-", raw).strip("-") or "unknown"
+    return f"{prefix}-{cleaned}"[:64] if not given else cleaned[:64]
+
+
 class Forager:
     def __init__(self, hive_url: str | None, ingest_key: str | None,
                  spool_dir: Path | None = None, device: str | None = None,
                  mode: str = "forensic"):
-        import socket
         self.hive_url = (hive_url or "").rstrip("/")
         self.ingest_key = ingest_key or ""
-        self.device = device or f"Forager-{socket.gethostname()}"
+        self.device = device_name("Forager", device)
         self.mode = mode if mode in MODES else "forensic"
         self.spool_dir = spool_dir or (Path.home() / ".hexbee-forager" / "spool")
         self.spool_dir.mkdir(parents=True, exist_ok=True)

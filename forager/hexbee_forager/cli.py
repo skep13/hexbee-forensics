@@ -111,6 +111,37 @@ def cmd_status(args) -> int:
     return 0
 
 
+def _load_events(path: Path) -> list[dict]:
+    """Read either shape Forager writes.
+
+    `collect --output` writes one JSON document; the offline spool writes one
+    event per line, because a spool is appended to as events fail and cannot
+    be a single well-formed array until it is closed. Parsing only the first
+    shape meant `submit` could never retry a spooled collection — which is the
+    entire reason the spool exists.
+    """
+    text = path.read_text(encoding="utf-8")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        events, unreadable = [], 0
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                unreadable += 1
+        if not events:
+            raise
+        if unreadable:
+            print(f"{path}: {unreadable} unreadable line(s) skipped",
+                  file=sys.stderr)
+        return events
+    return data if isinstance(data, list) else data.get("events", [])
+
+
 def cmd_submit(args) -> int:
     """Upload one or more previously-saved collections (from `collect
     --output`) into the Hive. This is the offline USB workflow: capture on the
@@ -125,11 +156,10 @@ def cmd_submit(args) -> int:
     total = 0
     for f in args.files:
         try:
-            data = json.loads(Path(f).read_text(encoding="utf-8"))
+            events = _load_events(Path(f))
         except (OSError, json.JSONDecodeError) as exc:
             print(f"{f}: skipped ({exc})", file=sys.stderr)
             continue
-        events = data if isinstance(data, list) else data.get("events", [])
         res = forager.ship(events)
         total += res.get("shipped", 0)
         print(f"{f}: shipped {res.get('shipped', 0)}, spooled {res.get('spooled', 0)}")

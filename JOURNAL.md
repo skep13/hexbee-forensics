@@ -456,7 +456,47 @@ check is the regression test for this entry's bug. The test matrix also gained
 an `ubuntu-24.04-arm` runner, and all five shell scripts are now shellchecked
 and LF-checked.
 
-### Entry 24 — Scout hardware bring-up (in progress)
+### Entry 24 — Three bugs found by actually running the thing
+**Time:** _(fill in)_
+
+The suite was green and the installers worked, so the platform *looked* fine.
+Running each component against a live Hive on macOS found three defects the
+tests could not have caught, because all three live where the tests were not:
+in per-platform command output, and in the failure paths.
+
+**Forager shipped nothing, silently.** It collected 819 artifacts and stored
+zero: every event was rejected with `missing or invalid device name`. The Hive
+requires `[A-Za-z0-9_-]{1,64}`; the agents derived a default name from
+`socket.gethostname()`, which on macOS is `Jacobs-MacBook-Air.local`. One dot
+made every event invalid. Nothing was lost — the spool caught all of it — but
+the dashboard stayed empty while the CLI reported success, which is the worst
+shape a failure can take. Both Forager and Netmon now sanitise the hostname
+into something the Hive will accept. Asahi would have hit this too: Fedora
+hosts routinely report an FQDN.
+
+**The spool could never be replayed.** `_spool()` writes JSONL, because a
+spool is appended to as sends fail and cannot be a well-formed array until it
+is closed. `submit` parsed the whole file as one JSON document and died on
+line 2. So the offline-collect-and-retry path — the thing that makes Forager
+usable on a disconnected scene — had never actually worked end to end. It
+reads both shapes now, and tolerates a spool truncated mid-write rather than
+losing the events already in it.
+
+**Netmon called a healthy gateway dead.** `hexbee-netmon check` raised a
+severity-3 `gateway_unreachable` alert against a gateway answering in 4 ms.
+`ping -W` is **seconds** on GNU/Linux and **milliseconds** on BSD, so the
+Linux value gave macOS a 1 ms deadline: replies arrived "out of wait time",
+every per-reply line vanished, and reachability — inferred from those lines
+alone — came out false. Fixed twice over: the flag now carries the right unit
+per platform, and reachability is read from the summary line, which is the
+authority, rather than from timings that some pings simply do not print. A
+false critical alert in an evidence log is worse than no alert.
+
+Fourteen regression tests cover all three, including one that asserts the
+Forager's own default device name passes the Hive's validator — the two had
+drifted apart precisely because nothing tied them together. Suite: **373**.
+
+### Entry 25 — Scout hardware bring-up (in progress)
 **Time:** _(fill in)_
 
 _Next hardware milestone — log as you go:_

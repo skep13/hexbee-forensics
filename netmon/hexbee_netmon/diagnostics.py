@@ -19,6 +19,14 @@ import time
 
 IS_WINDOWS = platform.system() == "Windows"
 
+# `ping -W` means different units depending on whose ping you have: GNU/Linux
+# reads seconds, BSD-derived ping (macOS included) reads milliseconds. Sending
+# the Linux value to macOS sets a 1 ms deadline, so every reply arrives "out of
+# wait time", the per-reply lines vanish, and a perfectly healthy gateway is
+# reported unreachable.
+IS_BSD_PING = platform.system() in ("Darwin", "FreeBSD", "OpenBSD", "NetBSD")
+_PING_WAIT = "1000" if IS_BSD_PING else "1"
+
 
 def _run(cmd: list[str], timeout: int = 20) -> str:
     try:
@@ -61,17 +69,36 @@ def ping(host: str, count: int = 4, timeout: int = 15) -> dict:
     if not host:
         return {"host": host, "reachable": False, "rtts_ms": [], "loss_pct": 100.0}
     cmd = (["ping", "-n", str(count), "-w", "1000", host] if IS_WINDOWS
-           else ["ping", "-c", str(count), "-W", "1", host])
+           else ["ping", "-c", str(count), "-W", _PING_WAIT, host])
     out = _run(cmd, timeout=timeout)
     rtts = [float(v) for v in re.findall(r"time[=<]\s*([\d.]+)\s*ms", out)]
     loss = re.search(r"([\d.]+)%\s*(?:packet\s*)?loss", out)
+    loss_pct = float(loss.group(1)) if loss else (0.0 if rtts else 100.0)
+
+    # The summary line is the authority on whether anything came back, not the
+    # per-reply lines: several pings print a received count and a loss figure
+    # while printing no per-reply line we can parse. Treating "no timings" as
+    # "unreachable" is what turned a working gateway into a severity-3 alert.
+    received = (re.search(r"(\d+)\s+(?:packets\s+)?received", out, re.I)
+                or re.search(r"received\s*=\s*(\d+)", out, re.I))
+    reachable = bool(rtts) or (received is not None and int(received.group(1)) > 0) \
+        or (loss is not None and loss_pct < 100.0)
+
+    # Fall back to the round-trip summary (min/avg/max) when the per-reply
+    # timings are missing but the host clearly answered.
+    avg_ms = round(sum(rtts) / len(rtts), 2) if rtts else None
+    if avg_ms is None and reachable:
+        summary = re.search(r"=\s*[\d.]+/([\d.]+)/([\d.]+)", out)
+        if summary:
+            avg_ms = float(summary.group(1))
+
     return {
         "host": host,
-        "reachable": bool(rtts),
+        "reachable": reachable,
         "rtts_ms": rtts,
-        "avg_ms": round(sum(rtts) / len(rtts), 2) if rtts else None,
+        "avg_ms": avg_ms,
         "max_ms": max(rtts) if rtts else None,
-        "loss_pct": float(loss.group(1)) if loss else (0.0 if rtts else 100.0),
+        "loss_pct": loss_pct,
     }
 
 

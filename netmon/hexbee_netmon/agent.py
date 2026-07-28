@@ -32,6 +32,24 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+
+def device_name(prefix: str, given: str | None = None) -> str:
+    """A device name the Hive will actually accept.
+
+    Hive device names are `[A-Za-z0-9_-]{1,64}`; hostnames frequently are not.
+    macOS reports `Jacobs-MacBook-Air.local` and many Linux hosts report an
+    FQDN, so the dotted default was rejected by the normalizer on every single
+    event — the agent collected hundreds of artifacts, shipped none of them,
+    and spooled the lot. That reads like a network fault and is not one.
+    """
+    import re
+    import socket
+
+    raw = given or socket.gethostname().split(".")[0]
+    cleaned = re.sub(r"[^A-Za-z0-9_-]", "-", raw).strip("-") or "unknown"
+    return f"{prefix}-{cleaned}"[:64] if not given else cleaned[:64]
+
+
 class NetMon:
     def __init__(self, hive_url: str | None, ingest_key: str | None, *,
                  mode: str = "ids", iface: str | None = None,
@@ -48,7 +66,7 @@ class NetMon:
         self.backend = backend
         self.monitor = monitor
         self.pcap = pcap
-        self.device = device or f"Netmon-{socket.gethostname()}"
+        self.device = device_name("Netmon", device)
         self.flush_interval = flush_interval
         self.spool_dir = spool_dir or (Path.home() / ".hexbee-netmon" / "spool")
         self.spool_dir.mkdir(parents=True, exist_ok=True)
