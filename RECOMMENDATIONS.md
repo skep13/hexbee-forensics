@@ -9,10 +9,16 @@ design. Where a recommendation's suggested approach would not survive contact
 with 1 GB of RAM or a radio-less microcontroller, the deviation is stated at
 the point it matters and again in [Limitations](#limitations).
 
-**Status:** 17/17 features built · 7/7 UI improvements built · plus a grounded
+**Status:** 15/15 features built · 7/7 UI improvements built · plus a grounded
 operator knowledge base so the local model can actually drive the toolkit ·
-287 tests passing · no hardware-in-the-loop validation yet (see
+359 tests passing · runs on macOS, Debian/Kali, Fedora/Asahi and Arch · no
+hardware-in-the-loop validation yet (see
 [What is not validated](#what-is-not-validated-on-hardware)).
+
+Two recommendations were dropped rather than built: both Raspberry Pi Pico
+roles. The Picos had no radio, so neither could report to the Hive, and the
+ESP32-C3 does HID over BLE *and* reports over Wi-Fi from one board. Removing
+them deleted more code than it cost.
 
 ---
 
@@ -24,7 +30,6 @@ operator knowledge base so the local model can actually drive the toolkit ·
 | RPi 3B+ | 1 GB RAM, Cortex-A53. Hive already uses ~300–400 MB. | Netmon uses a stdlib `AF_PACKET` decoder instead of scapy (~80 MB saved); syslog stores findings only, never raw lines; intel lives in a separate DB with indexed exact-match lookups; systemd caps Netmon at 192 MB. |
 | ESP32-S3 | 520 KB SRAM, 8 MB flash, USB OTG. | USB acquisition hashes a 4 KB prefix per file, streams one event per file, caps at 512 files and depth 6, and yields every 8 files so Wi-Fi/MQTT don't starve. |
 | ESP32-C3 | 400 KB SRAM, ~100 KB usable heap, Wi-Fi + BLE 5.0, **no USB OTG**. | Bounded dedup table (400 devices), one report per device per 15 min, batched uploads, queue trimmed at 200, `gc.collect()` every cycle. |
-| RPi Pico ×2 | **Plain Picos, not Pico W — no Wi-Fi.** 264 KB SRAM, USB HID capable. | Neither Pico talks to the Hive. The Stinger logs to its own drive for later import; the Sentinel reports over USB serial to a Queen listener. |
 | iPhone XR | PWA works; iOS sandboxing blocks raw packet capture and BLE from a PWA. | Unchanged — the field PWA remains camera + notes only. |
 | Storage | 64 GB SD (RPi OS + Hive), external HDD, 2× USB drives. | HDD is the documented home for YARA rules, the ATT&CK bundle, intel feeds, PCAPs, and memory images. Point `HEXBEE_DATA_DIR` at it. |
 
@@ -94,11 +99,10 @@ expose. For probe requests, use `hexbee-netmon run --monitor` with a
 monitor-capable USB adapter, or rewrite the C3 firmware against ESP-IDF's
 `esp_wifi_set_promiscuous()`.
 
-**Note on Pico ↔ C3:** the recommendation suggested UART-bridging a Pico
-through the C3 for Wi-Fi. That was not needed — see
-[#12](#12-pico-1--stinger-hid-payload-deployer--built-not-hardware-validated) and
-[#17](#17-pico-2--sentinel-hardware-evidence-seal-token--built-not-hardware-validated)
-for how the Picos actually report.
+**Note on the dropped Picos:** the recommendation suggested UART-bridging a
+Pico through the C3 for Wi-Fi. That whole branch is gone. The C3 does HID
+itself over BLE and reports over its own Wi-Fi, so a second board bought
+nothing — one radio-equipped chip replaced two radio-less ones.
 
 ---
 
@@ -362,45 +366,6 @@ headless browser on 4 GB.
 
 ---
 
-## 12. Pico 1 — Stinger HID payload deployer  ⚠️ built, not hardware-validated
-
-**Where:** `pico/badusb/code.py`, `boot.py`, `payloads/`, `pico/README.md`
-
-CircuitPython. Enumerates as a USB keyboard and types a DuckyScript 1.0
-payload. Payload selection is a file copy, not a reflash. The interpreter
-supports `REM`, `DELAY`, `DEFAULT_DELAY`, `STRING`, `STRINGLN`, `REPEAT`, and
-arbitrary modifier+key combinations; `REPEAT` is capped at 500 iterations so
-a typo cannot lock up a target.
-
-**It does not fire on plug-in alone.** An arm jumper (GP15–GND) is required;
-a safe pin (GP14–GND) overrides it. Without arming it enumerates, prints what
-it *would* have done, and stops. An implant that types the instant it touches
-USB is a hazard to your own machines first.
-
-When armed, `boot.py` hides the mass-storage drive and enables only the
-keyboard, then remounts the filesystem writable so the board can log its own
-deployment — a target host can neither mount the drive nor tamper with the
-log.
-
-**Reporting, given no radio:** each run appends to `deploy.log` on the Pico's
-own drive with a payload fingerprint, result, line count, and keystroke
-count. Import it afterwards:
-
-```bash
-hexbee-queen pico hid /media/$USER/CIRCUITPY/deploy.log --case 3 --target RECEPTION-PC
-```
-
-Each line becomes a `hid_deployment` event (T1200 + T1059).
-
-**On the payload library:** the recommendation listed reverse-shell droppers
-and credential harvesters as payload ideas. The *engine* is complete and runs
-any DuckyScript you write. The payloads shipped in the repo are
-demonstrative — proof-of-execution, read-only host enumeration, workstation
-lock. Payloads that only make sense as live attack tooling belong in your own
-engagement notes, alongside the authorisation that covers them.
-
----
-
 # Tier 3
 
 ## 13. RPi drop box + reverse SSH tunnel  ✅ built
@@ -505,45 +470,6 @@ auto-incident, the `ioc` tag, and an audit entry.
 **Compatibility note:** abuse.ch now requires a free account for most
 downloads. Set `HEXBEE_ABUSE_CH_KEY` to your Auth-Key; a 401/403 produces
 exactly that message rather than a generic failure.
-
----
-
-## 17. Pico 2 — Sentinel hardware evidence-seal token  ⚠️ built, not hardware-validated
-
-**Where:** `pico/sentinel/code.py`, `boot.py`, `queen/hexbee_queen/pico.py`,
-`hexbee-queen pico seal|provision`
-
-The original recommendation was a button that triggers `hexbee-hive anchor`.
-This is that, strengthened: **a signed seal, not just a press.**
-
-The token holds a per-device HMAC key in its own flash and signs each seal
-over `(device id, kind, counter, nonce, chain head)`. Consequences:
-
-- the seal is attributable to **one specific physical token** you can hand to
-  a witness — not merely proof that some button somewhere was pressed;
-- the counter is monotonic and persisted, so replays are detectable (the
-  Queen keeps a per-token high-water mark and rejects anything that goes
-  backwards);
-- when the Queen pushes the current chain head before a press, the signature
-  **binds the seal to a specific state of the evidence log**.
-
-A seal press writes a `case_seal` event and requests a signed chain anchor.
-A seal that fails verification is still recorded, with the reason — a failed
-seal is itself something the case should show. A second button (hold 2 s)
-emits a `tamper_mark`.
-
-**Stated honestly in the code, the README, and the evidence record:**
-
-- The key lives in flash on a microcontroller with no secure element. It
-  resists forgery by someone without the token; it does **not** resist someone
-  who has the token and a debugger. This is a custody aid, not an HSM.
-- A plain Pico has no real-time clock, so the token cannot timestamp its own
-  seals. Time comes from the Queen, and every payload says
-  `timestamp_source: queen (token has no real-time clock)`.
-
-The recommendation's UART→C3 idea was dropped: USB serial to the Queen is
-simpler, needs no second board in the loop, and gives a bidirectional channel
-(which is what makes the chain-head binding possible).
 
 ---
 
@@ -679,13 +605,11 @@ physical device**. This is the honest state of the build.
 |---|---|---|
 | Scout USB MSC host (#9) | Compiles conditionally; logic unexercised | An S3 board with OTG host wiring (VBUS supply, D+/D− on GPIO19/20) and the `usb_host_msc` component vendored in |
 | ESP32-C3 scanner (#2) | Not run on a C3 | A flashed board; verify BLE IRQ constants and the `WLAN.scan()` tuple layout for your MicroPython build |
-| Pico Stinger (#12) | Not run on a Pico | CircuitPython + the `adafruit_hid` bundle in `/lib`; confirm `boot.py` remount and drive-hiding behaviour on your CircuitPython version |
-| Pico Sentinel (#17) | Not run on a Pico | A CircuitPython build with a `hashlib` providing SHA-256 (`adafruit_hashlib`), plus USB CDC data endpoint enumeration |
 | Netmon raw capture | Decoder and rules unit-tested against synthetic frames; not run against a live interface | A Linux host with `CAP_NET_RAW` and real traffic |
 | Memory acquisition (#14) | Prechecks, hashing, and event shapes tested; no dump performed | LiME built for your kernel, or winpmem on a Windows target |
 
 The Python side — Hive, Comb, Forager, Queen, Netmon decoding and rules — is
-covered by **332 passing tests**, run on Linux, macOS and Windows by CI on
+covered by **359 passing tests**, run on Linux, macOS and Windows by CI on
 every push. CI also fails the build if the assistant's generated command
 reference drifts from the actual CLIs, and lints the installer.
 
@@ -711,10 +635,7 @@ Three shipped before they were caught. All are fixed, with regression tests:
   Concurrent streams are now capped, with the slot released on any exit path.
 
 Verified sound while checking: shell scripts are LF in the repository (so the
-installer runs on macOS), and the hand-rolled HMAC in the Pico Sentinel
-firmware matches Python's `hmac` on every vector including the over-length
-key path — a silent mismatch there would have made every evidence seal fail
-verification for no visible reason.
+installer runs on macOS).
 
 ## Capability limits by design
 
@@ -740,10 +661,6 @@ verification for no visible reason.
   `partial_hash: true` everywhere.
 - **The Scout is not a write blocker.** FATFS mounts read-write. Use hardware
   write blocking for anything intended for court.
-- **Neither Pico has a radio.** No live reporting from the Stinger, no
-  self-timestamping on the Sentinel. Both are documented rather than hidden.
-- **The Sentinel key is not hardware-protected.** No secure element on an
-  RP2040.
 - **Intel matching is exact, not fuzzy.** A URL that differs by a query
   parameter will not match a feed entry. That is the price of indexed lookups
   fast enough for a Pi.
@@ -799,15 +716,15 @@ hexbee-netmon                         biggest capability gap; blue + red + diagn
 YARA in Comb                          extends the existing scan pass
 Forager diagnostics + memory          reuses all existing agent plumbing
 Queen engagement tooling              responder, recon, bloodhound, pivot, report
-Firmware                              C3 scanner, Scout USB host, both Picos
+Firmware                              C3 scanner/implant, Scout USB host
 Web UI                                all seven improvements
-Tests + docs                          233 tests, this document
+Tests + docs                          359 tests, this document
 ```
 
 ---
 
 *Built against the existing HexBee architecture: `hive/`, `comb/`,
-`forager/`, `queen/`, `netmon/`, `scout/`, `pico/`. All new code follows the
+`forager/`, `queen/`, `netmon/`, `scout/`. All new code follows the
 existing conventions — one write path into the evidence chain, offline by
 default, optional dependencies degrade with an explanation rather than
 failing.*

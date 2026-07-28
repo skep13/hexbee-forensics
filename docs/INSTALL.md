@@ -114,20 +114,123 @@ sudo -u hexbee HEXBEE_DATA_DIR=/var/lib/hexbee \
 Dashboard: **http://\<pi-ip\>:8080**. Full detail and hardening in
 [DEPLOYMENT.md](DEPLOYMENT.md).
 
-### Queen — Kali laptop
+### Queen — Linux laptop (Kali, Fedora, Asahi, Arch)
 
 Installs both the analyst CLI and the Comb triage toolkit in one step:
 
 ```sh
 cd hexbee-forensics
-bash queen/setup-kali.sh
+bash queen/setup-linux.sh
 hexbee-queen connect http://<pi-ip>:8080 -u admin
 hexbee-queen status
 ```
 
-`setup-kali.sh` uses **pipx** (isolated installs) for `hexbee-queen` and
-`hexbee-comb`, and `apt` for **Sleuth Kit**. Most investigation happens in the
-Hive dashboard; the CLI is for scripting and quick queries.
+`setup-linux.sh` uses **pipx** (isolated installs) for `hexbee-queen` and
+`hexbee-comb`, and your distribution's package manager for **Sleuth Kit** —
+apt, dnf, pacman or zypper, detected by which one is present rather than by
+parsing `/etc/os-release`, so derivatives work with no special case. Most
+investigation happens in the Hive dashboard; the CLI is for scripting and
+quick queries.
+
+`bash queen/setup-kali.sh` still works — it is a thin wrapper around the same
+script.
+
+Flags: `--minimal`, `--with-netmon`, `--with-ai`, `--no-yara`.
+
+**On Asahi Linux (Apple Silicon)** the script detects the hardware and prints
+what is specific to it. The short version:
+
+- **Netmon works here**, unlike macOS — Linux gives you raw packet capture.
+  Install it with `--with-netmon`, then grant the capability the README
+  describes.
+- **Memory acquisition** needs a LiME module built against the Asahi kernel
+  (`sudo dnf install kernel-devel-$(uname -r) gcc make`), then point
+  `HEXBEE_LIME_MODULE` at the resulting `.ko`.
+- **Asahi kernels use 16K pages.** Python wheels are fine; check any prebuilt
+  third-party binary you add is not 4K-page-only.
+- **wkhtmltopdf is not packaged for Fedora**, so `--pdf` is unavailable. The
+  HTML engagement report is the deliverable — print it to PDF from a browser.
+
+#### Run it as a desktop app
+
+```sh
+bash scripts/make-linux-app.sh
+```
+
+Adds a **HexBee Forensics** launcher (and a **Stop HexBee** entry) to your
+applications menu, backed by systemd **user** services — the Linux equivalent
+of an app owning its own processes: tied to your login session, no root
+involved. Also installs `hexbee-ctl {start|stop|restart|status|logs}`.
+
+Evidence lives in `~/.local/share/hexbee`; logs go to the journal
+(`journalctl --user -u hexbee-hive.service`). Remove it all with
+`bash scripts/make-linux-app.sh --uninstall`.
+
+### Queen — macOS laptop
+
+The macOS counterpart, same two commands plus the system tooling, via
+**Homebrew** and **pipx**:
+
+```sh
+cd hexbee-forensics
+bash queen/setup-macos.sh
+hexbee-queen connect http://<pi-ip>:8080 -u admin
+hexbee-queen status
+```
+
+Flags: `--minimal` (HexBee commands only, no system tooling), `--with-ai`
+(also install Ollama for Hive Mind), `--no-yara`.
+
+Homebrew must already be installed — the script tells you how rather than
+changing system directories on your behalf. If a command is not found
+afterwards, open a new terminal; pipx puts its binaries in `~/.local/bin`.
+
+Three things macOS cannot do, worth planning around rather than debugging:
+
+| Not available | Why | What to do instead |
+|---|---|---|
+| Memory capture | Apple blocks the access it needs | Acquire from Windows/Linux targets |
+| `hexbee-netmon` | Raw capture needs extra drivers | Run it on the Pi, where it belongs |
+| `--pdf` report export | Homebrew no longer packages wkhtmltopdf | Open the HTML report, **Print → Save as PDF** |
+
+`hexbee-queen responder` still works — it reads a Responder log directory, so
+run Responder itself on the Pi or a Kali box and point the importer at its
+`Logs/`.
+
+#### Run it as a Mac app
+
+To use HexBee without keeping a terminal open, build a double-clickable app:
+
+```sh
+pipx install ./hive && bash scripts/make-macos-app.sh
+```
+
+That produces `~/Applications/HexBee.app`. Opening it starts the Hive
+dashboard and the Comb UI and opens your browser; **quitting it stops both**.
+Drag it to the Dock and HexBee behaves like any other Mac app.
+
+Two macOS specifics decide how this is built, and both are worth knowing:
+
+- **Evidence lives in `~/Library/Application Support/HexBee`, not the repo.**
+  macOS (TCC) denies a double-clicked app access to `~/Downloads`, `~/Desktop`
+  and `~/Documents`, and denies it *silently* — the failure surfaces as
+  `Operation not permitted` with no prompt. `pipx install ./hive` matters for
+  the same reason: it puts the Hive's code somewhere the app can always read.
+  If you keep the project in one of those folders, install via pipx or move
+  the project out.
+- **It is an AppleScript applet, not a shell script in a bundle.** Only a real
+  applet receives the Dock's Quit event. A bundled shell script cannot be
+  quit — macOS falls back to Force Quit, which kills the launcher and leaves
+  the servers running.
+
+Useful paths:
+
+```sh
+~/Applications/HexBee.app/Contents/Resources/hexbee-ctl.sh status   # start|stop|status
+```
+
+Logs are in `~/Library/Logs/HexBee/`. To use a real ingest key instead of the
+demo one, put `HEXBEE_INGEST_KEY=...` in `~/.hexbee-app.env`.
 
 ### Forager — collector agent / USB stick
 

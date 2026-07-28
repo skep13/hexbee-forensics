@@ -5,7 +5,7 @@ A distributed digital forensics & incident response (DFIR) platform.
 
 - **Builder:** skep13
 - **Repo:** https://github.com/skep13/hexbee-forensics
-- **Hardware:** ESP32-S3 (Scout) · Raspberry Pi 3B+ (Hive) · Kali ThinkPad T470 (Queen) · iPhone XR (field companion)
+- **Hardware:** ESP32-S3 (Scout) · ESP32-C3 (Stinger) · Raspberry Pi 3B+ (Hive) · ANY LAPTOP (Queen) · iPhone XR (field companion)
 
 > **How to read this journal.** The upper section is a chronological
 > **development log** of build sessions. The lower section is a complete
@@ -165,7 +165,298 @@ Made the whole platform usable without the command line:
 - Refactored the security posture into a shared `ops.py` used by both the CLI
   and the Admin page. Tests: **81 passing** (added `test_ui.py`).
 
-### Entry 13 — Scout hardware bring-up (in progress)
+### Entry 13 — Onboarding: make it usable by someone who has never done DFIR
+**Time:** _(fill in)_
+
+The platform had grown past what a README can carry. This entry is about the
+first hour of a new operator's life:
+
+- **`hexbee-hive setup`** ([setup_wizard.py](hive/hexbee_hive/setup_wizard.py)):
+  an interactive first-run wizard that explains each step *before* doing it,
+  gives every prompt a working default, and is safe to re-run (it reports what
+  already exists instead of clobbering it).
+- **`hexbee-hive doctor`** ([doctor.py](hive/hexbee_hive/doctor.py)) plus
+  `/api/v1/doctor`: every check answers three questions in plain English —
+  what is this, is it working, how do I fix it. Two rules it follows: a
+  missing *optional* dependency is reported as a reduced capability, not a
+  failure; and no check ever says "not found" without naming the command that
+  fixes it.
+- **Guided workflows** ([workflows.py](hive/hexbee_hive/workflows.py)) behind a
+  **Start Here** page (`/start`): jobs phrased as situations ("someone handed
+  me a USB stick") rather than features, with a `why` on every step. Defined
+  once and consumed twice — the dashboard renders them and the assistant
+  quotes them, so clicking and asking give the same answer.
+- A **glossary** page and a `/collect` page for getting evidence in without a
+  terminal.
+- **`try-hexbee.sh` / `try-hexbee.ps1`**: one command creates a venv, installs
+  all four Python components, initialises the DB, seeds a demo case, starts
+  the Hive, runs the Scout simulator, and opens the dashboard.
+- New docs: [INSTALL.md](docs/INSTALL.md), [OVERVIEW.md](docs/OVERVIEW.md), and
+  [FIELD-GUIDE.md](docs/FIELD-GUIDE.md) (a start-to-finish kit runbook).
+
+### Entry 14 — Hive Mind grounded on a generated operator's manual
+**Time:** _(fill in)_
+
+The local model is 1–3B on an 8 GB laptop. Asked ungrounded how to seal a
+case, a model that size invents a plausible command that does not exist —
+which is worse than refusing, because the operator will type it.
+
+[knowledge.py](hive/hexbee_hive/knowledge.py) fixes that by never asking the
+model to recall anything: it retrieves the exact reference material for the
+question and instructs the model to answer only from it. Half the corpus is
+**extracted from the running code** — event types and severities from
+`normalize.EVENT_SEVERITY`, technique mappings from `attack`, CLI commands by
+walking the argparse tree, API routes from the Flask app — so it cannot go
+stale when someone adds a feature and forgets the docs. Surfaced as an
+`/assistant` page, `hexbee-queen ai how`, and `/api/v1/knowledge/search`.
+
+### Entry 15 — MITRE ATT&CK tagging
+**Time:** _(fill in)_
+
+[attack.py](hive/hexbee_hive/attack.py): every ingested event is matched against
+an artifact-type → technique table and written to `event_techniques`, which
+gives incidents and cases a tactic breakdown for free — the dashboard heatmap
+(`/attack`) and the engagement report both read that one table.
+
+Two offline data sources: a small hand-curated built-in mapping that is always
+present (so tagging works on a fresh install with no data files), and
+optionally a real ATT&CK STIX bundle on the external HDD, parsed lazily with
+only the needed fields retained — the Pi never holds the whole 30 MB document.
+Added `hexbee-hive attack backfill` / `coverage` for retro-tagging existing
+events, and `/api/v1/attack/coverage`.
+
+### Entry 16 — Offline threat intel + a lightweight SIEM
+**Time:** _(fill in)_
+
+- **`hexbee-hive sync-intel`** ([intel.py](hive/hexbee_hive/intel.py)) is a
+  deliberately *pre-deployment* command: pull structured feeds while you still
+  have internet; in the field the IOC engine queries the local copy and the
+  Hive never touches the network. The intel DB is a **separate file** under
+  the data dir, so pointing `HEXBEE_DATA_DIR` at the external HDD keeps a large
+  feed off the SD card and keeps `hive.db` small enough to copy off fast.
+  Feeds stream to a temp file and insert in batches — a full MalwareBazaar
+  dump is millions of lines and is never read whole into RAM. Lookups are
+  exact-match on an indexed column (unlike the analyst watchlist's substring
+  matching).
+- **Syslog / log anomaly detection** ([syslog.py](hive/hexbee_hive/syslog.py)):
+  a UDP listener parsing both RFC 3164 and RFC 5424, plus `/api/v1/logs` for a
+  Windows Event Log forwarder posting JSON. Regex rules with a small counter
+  for threshold detections (brute force). **Raw lines are never stored** — only
+  findings become events — so a chatty network cannot fill the Pi's card or
+  its RAM.
+
+### Entry 17 — Netmon: passive network monitoring
+**Time:** _(fill in)_
+
+New component [netmon/](netmon/) — the one thing the rest of the platform could
+not see. Three modes: `ids` (passive detection — port scans, ARP spoofing, SMB
+relay/poisoning, DNS tunnelling, suspicious destination ports, 802.11 deauth
+floods), `recon` (passive inventory, one event per host rather than per packet,
+randomised MACs flagged), and `diagnostics` (gateway latency/loss, DNS health,
+route hops, ARP anomalies — the only mode that transmits).
+
+*Decision:* **no scapy by default.** ~80 MB of resident set on a 1 GB Pi that is
+already running the Hive is not affordable, so the default backend is a stdlib
+`AF_PACKET` socket with a hand-written header decoder: single-digit MB
+resident, a 256-byte snaplen so payloads are never copied out of the kernel,
+decoding that stops at layer 4, and rule state that is explicitly bounded and
+trimmed every 30 seconds. scapy remains an optional extra for exactly one
+thing — 802.11 monitor mode, which `AF_PACKET` cannot provide.
+
+### Entry 18 — Engagement mode: scope enforcement and offensive tooling
+**Time:** _(fill in)_
+
+The platform gained active tooling, so it first gained a gate.
+
+- **Scope enforcement** ([scope.py](hive/hexbee_hive/scope.py)) is
+  **fail-closed** by design, for legal defensibility: no scope rules at all
+  means everything is denied; a match returns the rule *including its
+  authorisation reference* for the report; a miss writes a `scope_violation`
+  event into the evidence chain with the caller's context. Every
+  traffic-generating tool calls the Queen-side `guard()` before it fires, and
+  the authority lives in the Hive so one definition covers every operator and
+  every tool. If the Hive is unreachable, the answer is no. Passive forensic
+  collection is untouched by any of this.
+- **Queen tooling**, all scope-gated and all landing in the same hash chain:
+  `recon` (nmap → `recon_finding` events, gated target-by-target *before* the
+  binary is invoked), `responder` (tails Responder's `Logs/` and records the
+  *structure* of each capture — account, domain, source, hash format — plus a
+  SHA-256 fingerprint, deliberately **not** the secret itself), `bloodhound`
+  (parses SharpHound/bloodhound.py output for kerberoastable and AS-REP
+  roastable accounts, unconstrained delegation, and DA membership), and
+  `pivot` (renders a reviewable autossh reverse-SSH unit for a Pi drop box
+  rather than silently reconfiguring a remote host).
+- **Case sealing** ([seal.py](queen/hexbee_queen/seal.py)): an investigator's
+  completion declaration pinned to a signed chain anchor taken at that instant,
+  so it can later be shown the log has not been rewritten since.
+- **Engagement report**: assembly lives in the Hive
+  ([engagement.py](hive/hexbee_hive/engagement.py)) because the Hive owns the
+  data — grouping five thousand events is a couple of SQLite reads there and a
+  full API pull anywhere else — and is consumed by both the dashboard preview
+  and `hexbee-queen engagement report`, which adds Hive Mind narration and
+  HTML/PDF rendering. Ollama calls are strictly **sequential**: `phi3:mini`
+  needs ~2.2 GB of the T470's 4 GB, so narration is queued one group at a time
+  with a cap on how many groups get narrated.
+
+### Entry 19 — Comb YARA · Forager memory acquisition · diagnostics mode
+**Time:** _(fill in)_
+
+- **Comb YARA** ([yara_scan.py](comb/hexbee_comb/yara_scan.py)): Comb already
+  reads every file once for hashing, so rule evaluation is one extra pass over
+  bytes already in hand — no extra traversal, no new I/O pattern. Rules compile
+  once at scan start, never per file. Missing `yara-python` or missing rules
+  degrade to "scans exactly as before, and the CLI says why".
+- **Forager memory acquisition** ([memory.py](forager/hexbee_forager/memory.py)):
+  the one capability that produces a large artifact. Every choice follows from
+  one fact — the analyst laptop has 4 GB and the target may have 16 GB+. The
+  acquisition tool writes straight to the external HDD (Forager never holds the
+  image), hashing streams the file back in fixed chunks (peak memory for a
+  64 GB dump is one chunk), and free space is checked *before* acquisition
+  starts.
+- **Forager diagnostics mode**
+  ([diagnostics.py](forager/hexbee_forager/diagnostics.py)): the same agent
+  pointed at machine health, reusing Hive discovery, batching, offline
+  spooling, and watch mode — no second agent to deploy. Emits
+  `diagnostic_snapshot` and `diagnostic_alert` events that thread through
+  correlation and ATT&CK tagging like anything else.
+
+### Entry 20 — Stinger: ESP32-C3 wireless implant
+**Time:** _(fill in)_
+
+[scout/c3-stinger/](scout/c3-stinger/) — one ~£4 MicroPython board, three modes
+selected in `config.py` (only the active mode's module is imported, which
+matters on ~100 KB of usable heap): `scan` (passive Wi-Fi beacon + BLE
+advertisement recon into the evidence chain), `portal` (rogue AP with captive
+portal), and `hid` (BLE keyboard injecting DuckyScript).
+
+*Constraint that shaped it:* the C3 **cannot** be a USB BadUSB — its USB
+peripheral is a fixed-function Serial/JTAG controller, so it physically cannot
+enumerate as HID. No firmware fixes silicon. It does have BLE 5.0, and
+HID-over-GATT gives the same capability over radio instead of a cable. That
+trade is documented rather than hidden: you need radio range instead of port
+access, and the target must pair — **a host that accepts an unauthenticated HID
+connection is the finding, and a host that demands confirmed pairing is not
+vulnerable, which is equally part of the deliverable.**
+
+Two reporting-honesty decisions carried through: every sighting is flagged
+`randomised_mac` when the address is locally-administered or a BLE random
+address, because a randomised MAC cannot track a device across sessions and a
+report must not imply it can; and since the C3 has no battery-backed RTC, it
+sets `occurred_at` **only** when NTP actually succeeded, otherwise letting the
+Hive record its own receipt time, with `time_synced` on every event. Stamping
+everything 2000-01-01 would be worse than admitting it did not know.
+
+Portal captures store a SHA-256 fingerprint by default, not the password —
+enough to prove someone typed a real credential without putting it into an
+evidence log you will hand over. `REPEAT` in the DuckyScript interpreter is
+capped at 500 so a typo cannot lock a target up. Added `selftest.py`, a
+one-shot non-transmitting smoke test that runs without editing `config.py`.
+
+**Not validated on hardware** — written and contract-tested against the Hive,
+but no board has run it yet.
+
+### Entry 21 — Test suite and current state
+**Time:** _(fill in)_
+
+Suite is now **359 tests, 357 passing** on the macOS dev box. The two failures
+are environment-specific, not defects: `test_exif_gps_roundtrip` needs the
+optional `piexif` package, and `test_processes_collector_finds_self` asserts on
+a process name that macOS `ps` truncates. Coverage grew with the features —
+`test_attack.py`, `test_knowledge.py`, `test_netmon.py`, `test_onboarding.py`,
+`test_queen_tools.py`, `test_scope.py`, `test_syslog_intel.py`,
+`test_forager_diagnostics.py`, `test_new_api.py`, `test_hardware_contracts.py`
+(firmware/board contracts tested without a board), and `test_regressions.py`.
+
+### Entry 22 — Running the Queen on macOS, and shipping it as an app
+**Time:** _(fill in)_
+
+Stood the analyst workstation up on an Apple Silicon Mac, which meant writing
+the macOS counterpart of everything that had assumed Kali.
+
+- **`queen/setup-macos.sh`**: Homebrew + pipx installer for `hexbee-queen` and
+  `hexbee-comb`, plus Sleuth Kit, libewf, nmap and smartmontools, with
+  `--minimal` / `--with-ai` / `--no-yara`. Homebrew itself is deliberately
+  *not* auto-installed — it asks for a password and writes to system
+  directories, which is the operator's call. It also states plainly what macOS
+  cannot do (memory capture, Netmon, PDF export) so those are planned around
+  rather than debugged.
+- **`HexBee.app`** (`scripts/make-macos-app.sh`): double-click to start the
+  Hive dashboard and the Comb UI and open the browser; **quit it and both stop**.
+
+Two macOS facts forced the design, and both were found by the thing failing:
+
+*The app could not read its own code.* macOS **TCC** denies a double-clicked
+app access to `~/Downloads`, `~/Desktop` and `~/Documents`, and denies it
+*silently* — the venv failed to load with a bare `Operation not permitted` and
+no prompt. So the app runs the **pipx-installed** Hive, whose code lives under
+Application Support, and keeps evidence in
+`~/Library/Application Support/HexBee`. Nothing it touches sits in a protected
+folder. The build script warns at build time when the repo is in one.
+
+*A shell script in an .app bundle cannot be quit.* The first version ignored
+the Dock's Quit event entirely, leaving Force Quit — which SIGKILLs the
+launcher and orphans the servers, exactly the failure the app was meant to
+prevent. It is now an **AppleScript applet** (`osacompile -s`, stay-open),
+which receives Quit properly; `on quit` stops the services it started. A
+Force Quit still orphans them, so `start` clears any previous run's PIDs
+first and the app self-heals on next launch.
+
+Also fixed a packaging gap this surfaced: `knowledge_commands.json` was missing
+from the Hive's `package-data`, so a non-editable install ran fine but the
+assistant quietly lost the Queen/Comb/Forager/Netmon command docs.
+
+### Entry 23 — One distribution is not "Linux": Asahi/Fedora support
+**Time:** _(fill in)_
+
+The Queen laptop is moving to **Asahi Linux** (Fedora Remix on Apple Silicon),
+which broke an assumption threaded through the whole codebase: that Linux
+means `apt`. On Fedora every install hint the platform printed was a command
+the machine does not have — the same class of failure as saying "not found",
+and a direct violation of the rule `doctor.py` is built around.
+
+- **Package-manager detection** now drives every hint: apt, dnf, pacman,
+  zypper and apk, detected by **which binary exists** rather than by parsing
+  `/etc/os-release`, so derivatives need no entry. Replaced the hardcoded
+  `sudo apt install …` strings in `doctor.py`, Comb (`tsk`, `cli`, `webui`)
+  and Queen (`recon`, `cli`, `engagement`).
+- The one apt command left is in `pivot.py`, and it is **correct** — those
+  instructions run on the Raspberry Pi, which is Debian.
+- Comb and Queen each carry their own copy of the ~20-line helper rather than
+  importing one. They are independently installable packages by design; a
+  shared import would mean Comb could not be installed without the Hive.
+- **`queen/setup-linux.sh`** replaces the Kali-only installer and covers all
+  four package managers from one code path, with per-distro package-name
+  aliases and Asahi detection (via `/proc/device-tree/compatible`).
+  `setup-kali.sh` is now a thin wrapper — two scripts doing the same job on
+  different distributions is how they drift apart.
+- **`scripts/make-linux-app.sh`** carries the app experience across: an
+  applications-menu launcher and a Stop entry, backed by systemd **user**
+  services — the Linux equivalent of an app owning its processes, tied to the
+  login session with no root involved. Plus `hexbee-ctl`
+  `{start|stop|restart|status|logs}` and an `--uninstall` that leaves evidence
+  alone.
+
+*Asahi specifics, documented rather than discovered later:* **Netmon works
+here** — Linux gives raw packet capture that macOS does not, so the one
+capability lost on the Mac comes back; memory acquisition needs LiME built
+against the Asahi kernel; Asahi runs **16K pages**, which Python wheels do not
+care about but a prebuilt third-party binary might; and wkhtmltopdf is absent
+on Fedora just as it is on Homebrew, so the HTML report plus browser print is
+the PDF path on both.
+
+**CI now has one tab per operating system.** The existing matrix proved the
+*tests* pass on Linux; it said nothing about whether the *installer* works on
+Fedora, and that is the claim that actually broke. A new `installer` job runs
+the real installer on macOS (arm64), Debian, Fedora, **Fedora aarch64** (the
+closest a hosted runner gets to Asahi — same package manager, same
+architecture) and Arch, then asserts two things: that `hexbee-queen` and
+`hexbee-comb` exist and run afterwards, and that **the install hint the
+platform prints names a package manager that machine actually has**. That last
+check is the regression test for this entry's bug. The test matrix also gained
+an `ubuntu-24.04-arm` runner, and all five shell scripts are now shellchecked
+and LF-checked.
+
+### Entry 24 — Scout hardware bring-up (in progress)
 **Time:** _(fill in)_
 
 _Next hardware milestone — log as you go:_
@@ -175,6 +466,8 @@ _Next hardware milestone — log as you go:_
 - [ ] Implement the real **TinyUSB** device-mode enumeration on the target PC
       (replace the simulated insertion in `usb_watch.c`).
 - [ ] MSC-host triage of an attached USB stick (file metadata → events).
+- [ ] Flash the **C3 Stinger** and run `selftest.py` on real silicon; confirm
+      BLE HID pairing behaviour against a test host.
 - [ ] Photograph the assembled Scout + a live capture on the dashboard.
 - [ ] (Stretch) per-Scout cryptographic identity + event signing; MQTT TLS.
 
@@ -187,13 +480,24 @@ USB-OTG field agent that plugs into a target computer. Flash storage only,
 limited RAM, USB/battery powered. **Constraints:** acquisition and triage
 only — no heavy analysis, no databases; everything it sends is small JSON.
 
+### Stinger — ESP32-C3
+Wireless implant running MicroPython on ~100 KB of usable heap. **Constraints:**
+one radio shared between AP mode and the uplink; no battery-backed RTC; and no
+USB HID at all — the C3's USB peripheral is a fixed-function Serial/JTAG
+controller, so BLE HID-over-GATT replaces the BadUSB cable.
+
 ### Hive — Raspberry Pi 3B+
 Always-on, headless evidence hub. Quad-core Cortex-A53, **1 GB RAM**, boots
 from USB SSD. **Constraints:** 1 GB RAM forces SQLite over PostgreSQL,
 event-driven processing over batch jobs, and memory-capped services.
 
-### Queen — Lenovo ThinkPad T470 (Kali Linux)
-Analyst workstation where heavy analysis (Comb) runs. No significant limits.
+### Queen — analyst workstation
+Where heavy analysis (Comb) runs; no significant limits. Originally a Lenovo
+ThinkPad T470 on Kali; now also an Apple Silicon Mac, moving to **Asahi Linux**
+(Fedora Remix). Each OS costs something different: macOS gives up raw packet
+capture and memory acquisition to the kernel's own restrictions, and confines
+a double-clicked app away from `~/Downloads`; Asahi gets both capabilities back
+but needs dnf rather than apt everywhere a fix-it hint is printed.
 
 ### iPhone XR — field validation terminal
 Not an acquisition device: human validation, QR scanning, evidence
@@ -220,33 +524,66 @@ timeline), `cases.py` (cases/notes/tags), `auth.py` (PBKDF2 + RBAC),
 (MBTiles tile server + evidence points), `reference.py` (ZIM + document
 library), `ai.py` (Hive Mind local AI + rule-based fallback),
 `security.py` (CSP/nonces, security headers, HMAC CSRF, login rate limiter),
-`evidence_export.py` (signed bundles + chain anchors), `api.py` (Flask
-REST + dashboard), `cli.py` (`hexbee-hive` command). Plus 22 HTML templates,
+`evidence_export.py` (signed bundles + chain anchors), `ops.py` (shared
+security posture), `attack.py` (offline MITRE ATT&CK tagging), `intel.py`
+(offline threat-intel feeds in a separate DB), `syslog.py` (syslog listener +
+log anomaly rules), `scope.py` (fail-closed engagement scope), `engagement.py`
+(engagement report assembly), `knowledge.py` (generated operator's manual for
+Hive Mind), `workflows.py` (guided beginner jobs), `doctor.py` (environment
+self-diagnosis), `setup_wizard.py` (first-run wizard), `api.py` (Flask REST +
+dashboard), `cli.py` (`hexbee-hive` command). Plus 27 HTML templates,
 logo/PWA static assets, `install.sh`, two systemd units, packaging.
 
 ### Queen — `queen/hexbee_queen/`
 `client.py` (stdlib REST client), `cli.py` (`hexbee-queen` command),
-`setup-kali.sh`.
+`scope.py` (client-side scope gate), `recon.py` (scope-gated nmap),
+`responder.py` (credential-capture bridge), `bloodhound.py` (AD collector
+parsing), `pivot.py` (reverse-SSH drop box), `seal.py` (case sealing),
+`engagement.py` (narrated engagement report), `pkghint.py` (per-distro install
+hints), `setup-linux.sh` (apt/dnf/pacman/zypper), `setup-macos.sh`,
+`setup-kali.sh` (wrapper).
 
 ### Comb — `comb/hexbee_comb/`
 `magic.py`, `inventory.py`, `carver.py`, `diskimage.py`, `exif.py`,
-`browser.py`, `tsk.py`, `analysis.py`, `cli.py` (`hexbee-comb` command).
+`browser.py`, `tsk.py`, `yara_scan.py`, `analysis.py`, `webui.py`
+(stdlib point-and-click UI), `pkghint.py`, `cli.py` (`hexbee-comb` command).
 
 ### Forager — `forager/hexbee_forager/`
 `collectors.py` (read-only host collectors), `agent.py` (autonomous
-orchestration, offline spool, watch-mode deltas), `cli.py` (`hexbee-forager`
-command), systemd unit.
+orchestration, offline spool, watch-mode deltas), `memory.py` (streaming
+memory acquisition), `diagnostics.py` (machine-health mode), `cli.py`
+(`hexbee-forager` command), USB launcher menu, systemd unit.
+
+### Netmon — `netmon/hexbee_netmon/`
+`capture.py` (stdlib `AF_PACKET` backend), `decode.py` (hand-written header
+decoder), `rules.py` (IDS rules with bounded state), `diagnostics.py` (network
+health probes), `agent.py`, `cli.py` (`hexbee-netmon` command), systemd unit.
 
 ### Scout — `scout/`
 Firmware `main/scout_main.c`, `event_buffer.c/.h`, `usb_watch.c/.h`, CMake +
-Kconfig + `sdkconfig.defaults`; Python simulator `scout/simulator/scout_sim.py`.
+Kconfig + `sdkconfig.defaults`; Python simulator `scout/simulator/scout_sim.py`;
+C3 Stinger (MicroPython) `c3-stinger/` — `main.py`, `link.py`, `scanner.py`,
+`portal.py`, `hid.py`, `selftest.py`, DuckyScript payloads.
 
-### Tests — `tests/` (48 passing)
-`test_core.py`, `test_api.py`, `test_ioc.py`, `test_comb.py`,
-`test_field_features.py`, `conftest.py`.
+### Tests — `tests/` (359 tests, 357 passing)
+`test_core.py`, `test_api.py`, `test_new_api.py`, `test_ioc.py`,
+`test_comb.py`, `test_field_features.py`, `test_security.py`, `test_ui.py`,
+`test_forager.py`, `test_forager_diagnostics.py`, `test_attack.py`,
+`test_syslog_intel.py`, `test_netmon.py`, `test_scope.py`,
+`test_queen_tools.py`, `test_knowledge.py`, `test_onboarding.py`,
+`test_hardware_contracts.py`, `test_regressions.py`, `conftest.py`.
 
-### Docs — `README.md`, `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`,
-`docs/API.md`, `docs/COMB.md`, `docs/HARDWARE.md`, `JOURNAL.md`, `LICENSE`.
+### Docs — `README.md`, `GETTING-STARTED.md`, `SECURITY.md`,
+`RECOMMENDATIONS.md`, `docs/OVERVIEW.md`, `docs/INSTALL.md`,
+`docs/FIELD-GUIDE.md`, `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`,
+`docs/API.md`, `docs/COMB.md`, `docs/FORENSICS.md`, `docs/HARDWARE.md`,
+`JOURNAL.md`, `LICENSE`. Plus `try-hexbee.sh` / `try-hexbee.ps1` one-command
+local demo.
+
+### Desktop launchers — `scripts/`
+`make-macos-app.sh` (builds `HexBee.app`, a stay-open AppleScript applet that
+owns the servers it starts), `make-linux-app.sh` (applications-menu launcher +
+systemd user services + `hexbee-ctl`), `build_knowledge.py`, `demo_seed.py`.
 
 ---
 
@@ -260,6 +597,17 @@ Kconfig + `sdkconfig.defaults`; Python simulator `scout/simulator/scout_sim.py`.
   degrades gracefully without its optional data/model.
 - **Evidence hygiene** — browser DBs copied then shredded; targets never
   opened read-write; every analyst action audit-logged.
+- **Fail closed on anything active** — no scope rules means nothing fires, and
+  an unreachable Hive is a refusal, not a bypass. Refusals are recorded in the
+  evidence chain, not just on a terminal.
+- **Never store the secret** — captured credentials are recorded as structure
+  plus a SHA-256 fingerprint, so an evidence log that gets handed over does not
+  carry somebody's password.
+- **Report what you don't know** — unsynced clocks are flagged rather than
+  guessed, randomised MACs are marked as untrackable, and a target that
+  *resists* an attack is written up as a finding.
+- **Generated, not written, where it can go stale** — the assistant's manual is
+  extracted from the running code, so a new event type documents itself.
 
 ---
 
@@ -275,3 +623,13 @@ GPS on an **offline map**, consult an **offline Wikipedia**, ask a **local AI**
 to summarise, and export verifiable reports; and an **iPhone XR** serves as a
 field companion for photographing evidence into the chain and scanning case QR
 labels — every layer offline, from acquisition to signed report.
+
+Beyond incident response, the same chain backs an **authorised engagement**:
+scope rules gate every tool that generates traffic and record every refusal;
+recon, credential capture, and AD collection land as evidence rather than
+scratch files; **Netmon** watches the wire passively and a **Stinger** watches
+the air; ATT&CK tagging turns the result into a tactic breakdown; and
+`hexbee-queen engagement report` renders the narrated client deliverable from
+the same events, sealed to a signed chain anchor. A beginner gets there via
+`setup`, `doctor`, the **Start Here** workflows, and an assistant grounded on a
+manual generated from the code itself.
