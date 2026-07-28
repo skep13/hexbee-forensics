@@ -2,6 +2,10 @@
 # Linux (Raspberry Pi / Kali) regardless of the authoring OS.
 * text=auto
 *.sh text eol=lf
+*.command text eol=lf
+# Batch and PowerShell must be CRLF or cmd.exe mis-parses them
+*.bat text eol=crlf
+*.ps1 text eol=crlf
 *.service text eol=lf
 *.c text eol=lf
 *.h text eol=lf

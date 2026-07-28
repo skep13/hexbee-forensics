@@ -496,7 +496,64 @@ Fourteen regression tests cover all three, including one that asserts the
 Forager's own default device name passes the Hive's validator — the two had
 drifted apart precisely because nothing tied them together. Suite: **373**.
 
-### Entry 25 — Scout hardware bring-up (in progress)
+### Entry 25 — The Explorer, and never needing a terminal
+**Time:** _(fill in)_
+
+Two complaints, one root cause: the platform was built by someone who lives in
+a shell, for someone who does not.
+
+**The Explorer** (`/explorer`) is the Autopsy layout over a hash-chained event
+log: a navigator on the left, results in the middle, one artifact in detail on
+the right. Autopsy's arrangement works because it matches the order an examiner
+asks questions — *what have I got*, *what is in it*, *what is this one thing* —
+and none of that is specific to filesystems.
+
+Two design points. **The tree is derived, never stored**: every node is a saved
+query, so ingesting a new artifact type grows a branch with no migration and
+nothing to keep in sync. **Counts come from one grouped query per branch**, not
+one per node, because a query per device per refresh is exactly what makes a UI
+feel broken on a Pi.
+
+Three bugs, all caught by opening it rather than by testing it:
+
+- The script was in a `{% block scripts %}` that base.html does not define, so
+  Jinja silently dropped it. The page returned 200 and rendered a dead
+  three-pane shell. There is now a test asserting the page contains its own
+  script, because "200 OK" proves nothing here.
+- `max-width:1px` on the cells — a trick to force ellipsis — crushed every
+  column to "202…", "Fora…", "pr…".
+- Replacing it with rem widths overflowed instead: with `table-layout:fixed` a
+  column set wider than the pane does not shrink, so Summary collapsed to zero
+  width whenever the detail pane was open on a 1280px screen. Percentages fixed
+  it for good.
+
+**First run in the browser.** A fresh install had no account, and the only way
+to make one was `hexbee-hive user add` in a terminal — a hard stop for anyone
+running HexBee as an app. `/setup` creates the first administrator from the
+login screen and then closes permanently: once any user exists the route
+refuses, because an unauthenticated admin-creation endpoint that stays open is
+a back door. It is CSRF-exempt for the same reason `/login` is — the token is
+derived from the session cookie and there is no session yet — and the test that
+matters is the one proving it shuts.
+
+**A double-click on every OS.** `scripts/hexbee_launcher.py` is stdlib-only (the
+thing that installs the dependencies cannot have any): it builds a private
+environment if there isn't one, starts the Hive, waits for the port to actually
+answer, and opens a browser. Wrapped per platform — `HexBee.app`,
+`HexBee.bat` + Start Menu shortcuts via `make-windows-app.ps1`,
+`try-hexbee.command`, and the Linux `.desktop` entry — with the macOS and Linux
+launchers falling back to it when nothing is installed yet. Windows had no
+launcher at all before this.
+
+Two launcher bugs worth recording, both mine: `--port` was used for the
+readiness check but never passed to the server, so it waited forever on a port
+nothing was bound to; and `port_open(port=PORT)` captured the module default at
+def time, so reassigning the global did nothing and it reported "already
+running" against the wrong port. Defaults are evaluated once, not per call.
+
+Suite: **395**.
+
+### Entry 26 — Scout hardware bring-up (in progress)
 **Time:** _(fill in)_
 
 _Next hardware milestone — log as you go:_
@@ -605,7 +662,7 @@ Kconfig + `sdkconfig.defaults`; Python simulator `scout/simulator/scout_sim.py`;
 C3 Stinger (MicroPython) `c3-stinger/` — `main.py`, `link.py`, `scanner.py`,
 `portal.py`, `hid.py`, `selftest.py`, DuckyScript payloads.
 
-### Tests — `tests/` (359 tests, 357 passing)
+### Tests — `tests/` (395 tests)
 `test_core.py`, `test_api.py`, `test_new_api.py`, `test_ioc.py`,
 `test_comb.py`, `test_field_features.py`, `test_security.py`, `test_ui.py`,
 `test_forager.py`, `test_forager_diagnostics.py`, `test_attack.py`,

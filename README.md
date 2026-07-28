@@ -66,18 +66,29 @@ assumes none. `hexbee-hive doctor` tells you what works on your machine and
 how to fix what doesn't; `hexbee-hive howto "..."` answers questions from the
 built-in manual.
 
-Setting up the analyst workstation, or want it as a desktop app rather than a
-terminal you have to leave open:
+### Never touch a terminal
+
+Every platform has a double-click that does everything — builds its own Python
+environment on first run, starts the Hive, and opens the dashboard, which walks
+you through creating your account:
+
+| | |
+|---|---|
+| **macOS** | double-click `try-hexbee.command`, or install the app: `bash scripts/make-macos-app.sh` |
+| **Windows** | double-click `HexBee.bat`, or add Start Menu shortcuts: `powershell -ExecutionPolicy Bypass -File scripts\make-windows-app.ps1` |
+| **Linux** | `bash scripts/make-linux-app.sh` for an applications-menu entry |
+
+Quitting the app stops the dashboard with it. Nothing needs administrator
+rights, and no account or password exists until you create one in the browser.
+
+Installing the analyst workstation tooling (Comb, engagement tools):
 
 ```bash
 bash queen/setup-macos.sh          # macOS (Homebrew + pipx)
 bash queen/setup-linux.sh          # Kali, Fedora/Asahi, Arch, openSUSE
-bash scripts/make-macos-app.sh     # then: a HexBee.app you can double-click
-bash scripts/make-linux-app.sh     # or: an applications-menu launcher
 ```
 
-Quitting the app stops the dashboard with it. See
-[docs/INSTALL.md](docs/INSTALL.md) for what each platform can and cannot do —
+See [docs/INSTALL.md](docs/INSTALL.md) for what each platform can and cannot do —
 macOS blocks memory capture and raw packet capture, Linux allows both.
 
 ## Repository layout
@@ -93,9 +104,9 @@ macOS blocks memory capture and raw packet capture, Linux allows both.
 | [scout/c3-stinger/](scout/c3-stinger/) | **Stinger** — ESP32-C3 wireless implant with three modes: passive recon, rogue AP with captive portal, and BLE keystroke injection |
 | [scout/simulator/](scout/simulator/) | Python Scout simulator — drives the whole platform with realistic scenarios, no hardware needed |
 | [docs/](docs/) | [Overview](docs/OVERVIEW.md), architecture, deployment, Comb, forensics, and API reference |
-| [scripts/](scripts/) | Desktop launchers (`make-macos-app.sh`, `make-linux-app.sh`), the knowledge-snapshot builder, and the demo seeder |
+| [scripts/](scripts/) | Cross-platform launcher (`hexbee_launcher.py`), desktop installers for macOS/Linux/Windows, the knowledge-snapshot builder, and the demo seeder |
 | [RECOMMENDATIONS.md](RECOMMENDATIONS.md) | What each added feature does, how it fits the hardware, and its limitations |
-| [tests/](tests/) | pytest suite (359 tests) across Hive core, IOC, scope, ATT&CK, syslog/intel, Comb, Netmon, Forager, Queen tooling, and the web UI |
+| [tests/](tests/) | pytest suite (395 tests) across Hive core, IOC, scope, ATT&CK, syslog/intel, Comb, Netmon, Forager, Queen tooling, and the web UI |
 
 ## Quick start (development, any OS)
 
@@ -208,7 +219,7 @@ diagnostics collection, Netmon passive network monitoring, the Queen's
 scope-gated engagement tooling and auto pentest report, offline evidence map
 with clustering, offline reference/Wikipedia library, Hive Mind local AI (with
 rule-based fallback), iPhone field PWA, and the Scout simulator.
-**359 passing tests.**
+**395 passing tests.**
 
 Written but not yet validated on hardware: the Scout's USB MSC host
 acquisition and the ESP32-C3 Stinger. See

@@ -11,7 +11,7 @@ the point it matters and again in [Limitations](#limitations).
 
 **Status:** 15/15 features built · 7/7 UI improvements built · plus a grounded
 operator knowledge base so the local model can actually drive the toolkit ·
-359 tests passing · runs on macOS, Debian/Kali, Fedora/Asahi and Arch · no
+395 tests passing · runs on macOS, Debian/Kali, Fedora/Asahi and Arch · no
 hardware-in-the-loop validation yet (see
 [What is not validated](#what-is-not-validated-on-hardware)).
 
@@ -609,7 +609,7 @@ physical device**. This is the honest state of the build.
 | Memory acquisition (#14) | Prechecks, hashing, and event shapes tested; no dump performed | LiME built for your kernel, or winpmem on a Windows target |
 
 The Python side — Hive, Comb, Forager, Queen, Netmon decoding and rules — is
-covered by **359 passing tests**, run on Linux, macOS and Windows by CI on
+covered by **395 passing tests**, run on Linux, macOS and Windows by CI on
 every push. CI also fails the build if the assistant's generated command
 reference drifts from the actual CLIs, and lints the installer.
 

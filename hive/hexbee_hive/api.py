@@ -93,6 +93,7 @@ from .security import (
     new_nonce,
 )
 from .reports import case_report_data, render_csv, render_html, render_json
+from .explorer import build_tree, event_detail, query_events
 from .search import search_events, stats
 from .store import EVENT_SELECT, audit, event_to_dict
 from .timeline import case_timeline, incident_timeline
@@ -168,9 +169,16 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
         # valid CSRF token. The JSON API uses bearer tokens in a custom header,
         # which browsers can't attach cross-site, so it is exempt. Login is
         # exempt (no session yet) and guarded by rate limiting.
+        #
+        # First-run setup is exempt for the same reason as login — the token is
+        # derived from the session cookie, and there is no session before an
+        # account exists. It is not an open door: the route refuses to do
+        # anything once any user exists, so it is reachable only on an install
+        # nobody has claimed yet.
         if request.method not in ("POST", "PUT", "DELETE", "PATCH"):
             return None
-        if request.path.startswith("/api/") or request.path == "/login":
+        if (request.path.startswith("/api/")
+                or request.path in ("/login", "/setup")):
             return None
         token = request.cookies.get(COOKIE, "")
         if not csrf_valid(token, request.form.get("_csrf", ""), signing_key):
@@ -895,8 +903,45 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
 
     # -- Dashboard pages --------------------------------------------------
 
+    # -- First run: create the first administrator in a browser -----------
+    # A fresh install has no account, and the only way to make one used to be
+    # a terminal. That is a hard stop for anyone running HexBee as an app, so
+    # the empty-user state gets its own page. It closes permanently the moment
+    # an account exists: once there is someone to log in as, an unauthenticated
+    # "create an administrator" route is a back door.
+
+    def _no_users() -> bool:
+        return db.query("SELECT COUNT(*) AS n FROM users")[0]["n"] == 0
+
+    @app.get("/setup")
+    def first_run_page():
+        if not _no_users():
+            return redirect(url_for("login_page"))
+        return render_template("first_run.html", error=None)
+
+    @app.post("/setup")
+    def first_run_submit():
+        if not _no_users():
+            return redirect(url_for("login_page"))
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+        if password != (request.form.get("confirm") or ""):
+            return render_template("first_run.html",
+                                   error="Those passwords do not match."), 400
+        try:
+            create_user(db, username, password, "administrator",
+                        min_length=cfg.min_password_length)
+        except ValueError as exc:
+            # The policy messages are already written for a human ("password
+            # must be at least 12 characters"), so they go straight to the page.
+            return render_template("first_run.html", error=str(exc)), 400
+        audit(db, username, "first_run_admin_created", f"ip={client_ip()}")
+        return redirect(url_for("login_page"))
+
     @app.get("/login")
     def login_page():
+        if _no_users():
+            return redirect(url_for("first_run_page"))
         return render_template("login.html", error=None)
 
     @app.post("/login")
@@ -1013,6 +1058,41 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
         return render_template(
             "search.html", user=g.user, results=results, query=q, devices=devices
         )
+
+    # -- Explorer: the three-pane evidence browser ------------------------
+
+    @app.get("/explorer")
+    @require("viewer", api=False)
+    def explorer_page():
+        return render_template("explorer.html", user=g.user)
+
+    @app.get("/api/v1/explorer/tree")
+    @require("viewer")
+    def api_explorer_tree():
+        return jsonify(tree=build_tree(db))
+
+    @app.get("/api/v1/explorer/events")
+    @require("viewer")
+    def api_explorer_events():
+        q = request.args
+        filters = {k: q.get(k) for k in
+                   ("device", "event_type", "technique", "ioc", "text")
+                   if q.get(k)}
+        for k in ("incident_id", "severity", "case_id"):
+            if q.get(k) not in (None, ""):
+                filters[k] = q.get(k, type=int)
+        return jsonify(query_events(
+            db, filters,
+            limit=min(q.get("limit", default=500, type=int), 2000),
+            offset=max(q.get("offset", default=0, type=int), 0)))
+
+    @app.get("/api/v1/explorer/event/<int:event_id>")
+    @require("viewer")
+    def api_explorer_event(event_id: int):
+        detail = event_detail(db, event_id)
+        if detail is None:
+            return jsonify(error="no such event"), 404
+        return jsonify(detail)
 
     @app.get("/devices")
     @require("viewer", api=False)

@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+{% block title %}Explorer — HexBee Hive{% endblock %}
+{% block content %}
+<style>
+/* Three panes: navigator, results, detail. Sized in fr so the splitters can
+   rewrite the columns without touching anything else. */
+.xp{
+  display:grid; grid-template-columns:var(--xp-nav,230px) 5px minmax(0,1fr) 5px var(--xp-det,330px);
+  height:calc(100vh - 120px); min-height:420px;
+  border:1px solid var(--line); border-radius:var(--r);
+  background:var(--bg-2); overflow:hidden;
+}
+.xp-pane{overflow:auto; min-width:0}
+.xp-split{background:var(--line); cursor:col-resize; transition:background .12s}
+.xp-split:hover,.xp-split.drag{background:var(--honey)}
+.xp-head{
+  position:sticky; top:0; z-index:2; background:var(--bg-3);
+  border-bottom:1px solid var(--line); padding:.5rem .7rem;
+  font-size:.72rem; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--muted); display:flex; align-items:center; gap:.5rem;
+}
+.xp-head .n{margin-left:auto; color:var(--faint); text-transform:none; letter-spacing:0}
+
+/* ---------- navigator ---------- */
+.xp-tree{padding:.35rem 0; font-size:.85rem}
+.xp-node{padding:.25rem .6rem; display:flex; align-items:center; gap:.4rem;
+  cursor:pointer; border-left:2px solid transparent; user-select:none}
+.xp-node:hover{background:var(--bg-3)}
+.xp-node.sel{background:rgba(249,185,18,.12); border-left-color:var(--honey); color:var(--honey-2)}
+.xp-node .tw{width:12px; color:var(--faint); flex:none; font-size:.7rem}
+.xp-node .lb{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.xp-node .ct{margin-left:auto; color:var(--faint); font-family:var(--mono); font-size:.72rem}
+.xp-node.grp{font-weight:650; color:var(--text)}
+.xp-kids{display:none} .xp-kids.open{display:block}
+.xp-kids .xp-node{padding-left:1.5rem}
+.xp-kids .xp-kids .xp-node{padding-left:2.4rem}
+.xp-badge{font-size:.62rem; padding:.05rem .3rem; border:1px solid var(--line-2);
+  border-radius:3px; color:var(--muted); flex:none}
+
+/* ---------- results ---------- */
+.xp-tools{display:flex; gap:.4rem; align-items:center; padding:.45rem .6rem;
+  border-bottom:1px solid var(--line); background:var(--bg-2); position:sticky; top:0; z-index:2}
+.xp-tools input{flex:1; min-width:80px; background:var(--bg); border:1px solid var(--line);
+  color:var(--text); border-radius:6px; padding:.32rem .5rem; font-size:.82rem}
+/* table-layout:fixed so the columns keep the widths declared below instead of
+   fighting each other for space — an examiner needs the whole timestamp and a
+   readable artifact type, and the summary can take whatever is left. */
+table.xp-rows{width:100%; border-collapse:collapse; font-size:.82rem; table-layout:fixed}
+table.xp-rows th{position:sticky; top:0; background:var(--bg-3); text-align:left;
+  padding:.35rem .5rem; border-bottom:1px solid var(--line); font-size:.7rem;
+  text-transform:uppercase; letter-spacing:.06em; color:var(--muted); z-index:1;
+  white-space:nowrap}
+table.xp-rows td{padding:.3rem .5rem; border-bottom:1px solid var(--bg-3);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+table.xp-rows td.tm{font-family:var(--mono); font-size:.74rem; color:var(--muted)}
+table.xp-rows td.sum{font-family:var(--mono); font-size:.76rem; color:var(--muted)}
+/* Percentages, not rem: with table-layout:fixed a column set wider than the
+   pane does not shrink, it overflows — which collapsed Summary to zero width
+   whenever the detail pane was open on a 1280px screen. */
+.xp-c-time{width:23%} .xp-c-src{width:20%} .xp-c-type{width:20%} .xp-c-sev{width:5%}
+table.xp-rows tr{cursor:pointer}
+table.xp-rows tr:hover td{background:var(--bg-3)}
+table.xp-rows tr.sel td{background:rgba(249,185,18,.13); color:var(--honey-2)}
+.sevdot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--info)}
+.sev-1{background:var(--notice)} .sev-2{background:var(--warning)}
+.sev-3{background:var(--crit)} .sev-4{background:var(--crit); box-shadow:0 0 0 3px rgba(229,72,77,.25)}
+
+/* ---------- detail ---------- */
+.xp-det{padding:.7rem .8rem; font-size:.83rem}
+.xp-det h3{margin:.2rem 0 .5rem; font-size:.95rem}
+.xp-kv{display:grid; grid-template-columns:auto 1fr; gap:.25rem .6rem; margin-bottom:.8rem}
+.xp-kv dt{color:var(--muted); font-size:.75rem}
+.xp-kv dd{margin:0; font-family:var(--mono); font-size:.76rem; word-break:break-all}
+.xp-json{background:var(--bg); border:1px solid var(--line); border-radius:6px;
+  padding:.5rem .6rem; font-family:var(--mono); font-size:.75rem;
+  white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto}
+.xp-sec{margin-top:.8rem; font-size:.7rem; text-transform:uppercase;
+  letter-spacing:.07em; color:var(--muted); margin-bottom:.3rem}
+.xp-chip{display:inline-block; font-family:var(--mono); font-size:.7rem;
+  border:1px solid var(--line-2); border-radius:4px; padding:.1rem .35rem;
+  margin:0 .25rem .25rem 0; color:var(--honey)}
+.xp-empty{padding:2rem 1rem; text-align:center; color:var(--faint); font-size:.85rem}
+@media(max-width:900px){
+  .xp{grid-template-columns:1fr; grid-template-rows:auto auto 1fr; height:auto}
+  .xp-split{display:none}
+  .xp-pane{max-height:50vh}
+}
+</style>
+
+<div class="page-head">
+  <div><h1>Explorer</h1>
+    <p class="sub">Every artifact in the evidence chain — pick a source on the left,
+      scan the results, open one to see everything known about it.</p></div>
+  <div><button class="btn btn-sm" id="xp-refresh">Refresh</button></div>
+</div>
+
+<div class="xp" id="xp">
+  <div class="xp-pane" id="xp-navpane">
+    <div class="xp-head">Navigator</div>
+    <div class="xp-tree" id="xp-tree"><div class="xp-empty">Loading…</div></div>
+  </div>
+  <div class="xp-split" id="xp-s1"></div>
+  <div class="xp-pane">
+    <div class="xp-tools">
+      <input id="xp-filter" placeholder="Filter these results — path, hash, host…">
+      <button class="btn btn-sm" id="xp-prev">‹</button>
+      <button class="btn btn-sm" id="xp-next">›</button>
+    </div>
+    <div id="xp-results"><div class="xp-empty">Select something on the left.</div></div>
+  </div>
+  <div class="xp-split" id="xp-s2"></div>
+  <div class="xp-pane">
+    <div class="xp-head">Artifact <span class="n" id="xp-detn"></span></div>
+    <div class="xp-det" id="xp-detail"><div class="xp-empty">No artifact selected.</div></div>
+  </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function(){
+  "use strict";
+  var state = { filter:{}, label:"", offset:0, limit:500, total:0, rows:[], sel:-1 };
+
+  function el(id){ return document.getElementById(id); }
+  function esc(s){
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;");
+  }
+  function shortTime(t){
+    // "2026-07-28T22:47:39Z" -> "07-28 22:47:39". The year is almost always
+    // the same across a case and costs a fifth of the column.
+    var m = /^\d{4}-(\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/.exec(String(t || ""));
+    return m ? m[1] + " " + m[2] : String(t || "");
+  }
+  function qs(obj){
+    var p = [];
+    for (var k in obj) if (obj[k] !== null && obj[k] !== undefined && obj[k] !== "")
+      p.push(encodeURIComponent(k) + "=" + encodeURIComponent(obj[k]));
+    return p.join("&");
+  }
+  function getJSON(url){
+    return fetch(url, { credentials:"same-origin" }).then(function(r){
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    });
+  }
+
+  // ---------- navigator ----------
+  function nodeHTML(n, depth){
+    var kids = n.children || [];
+    var hasKids = kids.length > 0;
+    var h = '<div class="xp-node' + (hasKids && depth === 0 ? " grp" : "") + '"' +
+            ' data-filter="' + esc(JSON.stringify(n.filter || null)) + '"' +
+            ' data-label="' + esc(n.label) + '"' +
+            ' data-id="' + esc(n.id) + '">' +
+            '<span class="tw">' + (hasKids ? "▸" : "") + "</span>" +
+            '<span class="lb">' + esc(n.label) + "</span>" +
+            (n.badge ? '<span class="xp-badge">' + esc(n.badge) + "</span>" : "") +
+            (n.count === null || n.count === undefined
+               ? "" : '<span class="ct">' + n.count + "</span>") +
+            "</div>";
+    if (hasKids){
+      h += '<div class="xp-kids">';
+      for (var i = 0; i < kids.length; i++) h += nodeHTML(kids[i], depth + 1);
+      h += "</div>";
+    }
+    return h;
+  }
+
+  function loadTree(){
+    return getJSON("/api/v1/explorer/tree").then(function(d){
+      var html = "";
+      for (var i = 0; i < d.tree.length; i++) html += nodeHTML(d.tree[i], 0);
+      el("xp-tree").innerHTML = html || '<div class="xp-empty">No evidence yet.</div>';
+      wireTree();
+    }).catch(function(e){
+      el("xp-tree").innerHTML = '<div class="xp-empty">Could not load: ' + esc(e.message) + "</div>";
+    });
+  }
+
+  function wireTree(){
+    var nodes = el("xp-tree").querySelectorAll(".xp-node");
+    Array.prototype.forEach.call(nodes, function(node){
+      node.addEventListener("click", function(ev){
+        ev.stopPropagation();
+        var kids = node.nextElementSibling;
+        if (kids && kids.classList.contains("xp-kids")){
+          kids.classList.toggle("open");
+          var tw = node.querySelector(".tw");
+          if (tw) tw.textContent = kids.classList.contains("open") ? "▾" : "▸";
+        }
+        var raw = node.getAttribute("data-filter");
+        if (raw && raw !== "null"){
+          Array.prototype.forEach.call(nodes, function(n){ n.classList.remove("sel"); });
+          node.classList.add("sel");
+          state.filter = JSON.parse(raw);
+          state.label = node.getAttribute("data-label");
+          state.offset = 0;
+          loadResults();
+        }
+      });
+    });
+    // Open the first branch so the pane is never blank on arrival.
+    var first = el("xp-tree").querySelector(".xp-kids");
+    if (first){
+      first.classList.add("open");
+      var tw = first.previousElementSibling.querySelector(".tw");
+      if (tw) tw.textContent = "▾";
+    }
+  }
+
+  // ---------- results ----------
+  function loadResults(){
+    var params = {};
+    for (var k in state.filter) params[k] = state.filter[k];
+    var text = el("xp-filter").value.trim();
+    if (text) params.text = text;
+    params.limit = state.limit;
+    params.offset = state.offset;
+    el("xp-results").innerHTML = '<div class="xp-empty">Loading…</div>';
+    return getJSON("/api/v1/explorer/events?" + qs(params)).then(function(d){
+      state.rows = d.events; state.total = d.total; state.sel = -1;
+      renderRows();
+    }).catch(function(e){
+      el("xp-results").innerHTML = '<div class="xp-empty">Could not load: ' + esc(e.message) + "</div>";
+    });
+  }
+
+  function renderRows(){
+    if (!state.rows.length){
+      el("xp-results").innerHTML = '<div class="xp-empty">Nothing matches.</div>';
+      return;
+    }
+    var h = '<table class="xp-rows"><colgroup>' +
+            '<col class="xp-c-time"><col class="xp-c-src"><col class="xp-c-type">' +
+            '<col class="xp-c-sev"><col></colgroup><thead><tr>' +
+            "<th>Time (UTC)</th><th>Source</th><th>Type</th><th></th><th>Summary</th>" +
+            "</tr></thead><tbody>";
+    for (var i = 0; i < state.rows.length; i++){
+      var r = state.rows[i];
+      h += '<tr data-i="' + i + '" data-id="' + r.id + '">' +
+           '<td class="tm">' + esc(shortTime(r.occurred_at)) + "</td>" +
+           "<td>" + esc(r.device) + "</td>" +
+           "<td>" + esc(r.event_type) + "</td>" +
+           '<td><span class="sevdot sev-' + r.severity + '" title="severity ' + r.severity + '"></span></td>' +
+           '<td class="sum">' + esc(r.summary) + "</td></tr>";
+    }
+    h += "</tbody></table>";
+    var shown = state.offset + state.rows.length;
+    h += '<div class="xp-empty" style="padding:.6rem">' +
+         esc(state.label) + " — showing " + (state.offset + 1) + "–" + shown +
+         " of " + state.total + "</div>";
+    el("xp-results").innerHTML = h;
+
+    var trs = el("xp-results").querySelectorAll("tbody tr");
+    Array.prototype.forEach.call(trs, function(tr){
+      tr.addEventListener("click", function(){ select(parseInt(tr.getAttribute("data-i"), 10)); });
+    });
+  }
+
+  function select(i){
+    if (i < 0 || i >= state.rows.length) return;
+    state.sel = i;
+    var trs = el("xp-results").querySelectorAll("tbody tr");
+    Array.prototype.forEach.call(trs, function(tr){ tr.classList.remove("sel"); });
+    if (trs[i]){
+      trs[i].classList.add("sel");
+      trs[i].scrollIntoView({ block:"nearest" });
+    }
+    loadDetail(state.rows[i].id);
+  }
+
+  // ---------- detail ----------
+  function loadDetail(id){
+    el("xp-detn").textContent = "#" + id;
+    el("xp-detail").innerHTML = '<div class="xp-empty">Loading…</div>';
+    getJSON("/api/v1/explorer/event/" + id).then(renderDetail).catch(function(e){
+      el("xp-detail").innerHTML = '<div class="xp-empty">Could not load: ' + esc(e.message) + "</div>";
+    });
+  }
+
+  function renderDetail(d){
+    var h = "<h3>" + esc(d.event_type) + "</h3>";
+    h += '<dl class="xp-kv">';
+    h += "<dt>Occurred</dt><dd>" + esc(d.occurred_at) + "</dd>";
+    h += "<dt>Received</dt><dd>" + esc(d.received_at) + "</dd>";
+    h += "<dt>Source</dt><dd>" + esc(d.device) +
+         (d.device_kind ? " (" + esc(d.device_kind) + ")" : "") + "</dd>";
+    h += "<dt>Severity</dt><dd>" + esc(d.severity_label) + "</dd>";
+    if (d.incident_id)
+      h += '<dt>Incident</dt><dd><a href="/incidents/' + d.incident_id + '">#' +
+           d.incident_id + "</a></dd>";
+    h += "</dl>";
+
+    h += '<div class="xp-sec">Payload</div><div class="xp-json">' +
+         esc(JSON.stringify(d.payload, null, 2)) + "</div>";
+
+    if (d.techniques && d.techniques.length){
+      h += '<div class="xp-sec">ATT&amp;CK</div>';
+      for (var i = 0; i < d.techniques.length; i++)
+        h += '<span class="xp-chip">' + esc(d.techniques[i].technique_id) +
+             (d.techniques[i].tactic ? " · " + esc(d.techniques[i].tactic) : "") + "</span>";
+    }
+    if (d.ioc_hits && d.ioc_hits.length){
+      h += '<div class="xp-sec">IOC hits</div>';
+      for (var j = 0; j < d.ioc_hits.length; j++)
+        h += '<span class="xp-chip">' + esc(d.ioc_hits[j].kind) + ": " +
+             esc(d.ioc_hits[j].value) + "</span>";
+    }
+    if (d.tags && d.tags.length){
+      h += '<div class="xp-sec">Tags</div>';
+      for (var k = 0; k < d.tags.length; k++)
+        h += '<span class="xp-chip">' + esc(d.tags[k]) + "</span>";
+    }
+
+    // The chain position is what makes a record defensible, so it is shown
+    // with every artifact rather than hidden behind a verify button.
+    h += '<div class="xp-sec">Chain position</div><dl class="xp-kv">';
+    h += "<dt>This hash</dt><dd>" + esc(d.chain.event_hash) + "</dd>";
+    h += "<dt>Commits to</dt><dd>" + esc(d.chain.prev_hash || "genesis") + "</dd>";
+    h += "</dl>";
+    el("xp-detail").innerHTML = h;
+  }
+
+  // ---------- keyboard: an examiner walks a list with arrows ----------
+  document.addEventListener("keydown", function(ev){
+    if (ev.target.tagName === "INPUT" || ev.target.tagName === "TEXTAREA") return;
+    if (ev.key === "ArrowDown"){ ev.preventDefault(); select(state.sel + 1); }
+    else if (ev.key === "ArrowUp"){ ev.preventDefault(); select(state.sel - 1); }
+  });
+
+  // ---------- paging + filter ----------
+  var timer = null;
+  el("xp-filter").addEventListener("input", function(){
+    clearTimeout(timer);
+    timer = setTimeout(function(){ state.offset = 0; loadResults(); }, 250);
+  });
+  el("xp-next").addEventListener("click", function(){
+    if (state.offset + state.limit < state.total){ state.offset += state.limit; loadResults(); }
+  });
+  el("xp-prev").addEventListener("click", function(){
+    if (state.offset > 0){ state.offset = Math.max(0, state.offset - state.limit); loadResults(); }
+  });
+  el("xp-refresh").addEventListener("click", function(){
+    loadTree().then(function(){ if (state.label) loadResults(); });
+  });
+
+  // ---------- splitters ----------
+  function splitter(id, varName, fromRight){
+    var handle = el(id), dragging = false;
+    handle.addEventListener("mousedown", function(ev){
+      dragging = true; handle.classList.add("drag");
+      ev.preventDefault();
+    });
+    document.addEventListener("mousemove", function(ev){
+      if (!dragging) return;
+      var box = el("xp").getBoundingClientRect();
+      var px = fromRight ? box.right - ev.clientX : ev.clientX - box.left;
+      px = Math.max(160, Math.min(px, box.width - 320));
+      el("xp").style.setProperty(varName, px + "px");
+    });
+    document.addEventListener("mouseup", function(){
+      dragging = false; handle.classList.remove("drag");
+    });
+  }
+  splitter("xp-s1", "--xp-nav", false);
+  splitter("xp-s2", "--xp-det", true);
+
+  loadTree();
+})();
+</script>
+{% endblock %}

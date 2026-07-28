@@ -86,13 +86,15 @@ jobs:
           shellcheck --severity=warning \
             install.sh hive/install.sh \
             queen/setup-kali.sh queen/setup-linux.sh queen/setup-macos.sh \
-            scripts/make-macos-app.sh scripts/make-linux-app.sh
+            scripts/make-macos-app.sh scripts/make-linux-app.sh \
+            try-hexbee.sh try-hexbee.command
 
       - name: Line endings must be LF
         run: |
           for f in install.sh hive/install.sh \
                    queen/setup-kali.sh queen/setup-linux.sh queen/setup-macos.sh \
-                   scripts/make-macos-app.sh scripts/make-linux-app.sh; do
+                   scripts/make-macos-app.sh scripts/make-linux-app.sh \
+                   try-hexbee.sh try-hexbee.command; do
             if grep -qU $'\r' "$f"; then
               echo "::error::$f has CRLF line endings and will not run on macOS or Linux"
               exit 1

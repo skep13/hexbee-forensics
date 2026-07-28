@@ -51,6 +51,20 @@ command -v systemctl >/dev/null 2>&1 \
 
 HIVE_BIN="$(command -v hexbee-hive || true)"
 [ -n "$HIVE_BIN" ] || HIVE_BIN="$REPO_ROOT/.venv/bin/hexbee-hive"
+if [ ! -x "$HIVE_BIN" ]; then
+    # Build the environment now rather than sending someone to a terminal.
+    if command -v python3 >/dev/null 2>&1 && [ -f "$REPO_ROOT/scripts/hexbee_launcher.py" ]; then
+        echo "==> First run — building the Python environment"
+        python3 "$REPO_ROOT/scripts/hexbee_launcher.py" --no-browser &
+        BOOT=$!
+        for _ in $(seq 1 240); do
+            [ -x "$REPO_ROOT/.venv/bin/hexbee-hive" ] && break
+            sleep 0.5
+        done
+        kill "$BOOT" 2>/dev/null || true
+        HIVE_BIN="$REPO_ROOT/.venv/bin/hexbee-hive"
+    fi
+fi
 [ -x "$HIVE_BIN" ] \
     || { echo "hexbee-hive not found. Install it with: pipx install \"$REPO_ROOT/hive\"" >&2; exit 1; }
 COMB_BIN="$(command -v hexbee-comb || true)"

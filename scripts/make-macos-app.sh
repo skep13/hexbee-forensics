@@ -93,10 +93,24 @@ start() {
     stop_quiet
 
     local hive_bin comb_bin
-    hive_bin="$(resolve hexbee-hive)" || {
+    if ! hive_bin="$(resolve hexbee-hive)"; then
+        # Nothing installed yet. Rather than telling someone who double-clicked
+        # an app to go and type a pipx command, hand over to the bootstrapping
+        # launcher, which builds the environment and starts the Hive itself.
+        if [ -f "$REPO_ROOT/scripts/hexbee_launcher.py" ] && command -v python3 >/dev/null 2>&1; then
+            echo "first run — building the environment" >&2
+            python3 "$REPO_ROOT/scripts/hexbee_launcher.py" --no-browser \
+                >>"$LOG_DIR/bootstrap.log" 2>&1 &
+            local i
+            for i in $(seq 1 240); do
+                port_busy "$HIVE_PORT" && break
+                sleep 0.5
+            done
+            port_busy "$HIVE_PORT" && { open "http://127.0.0.1:$HIVE_PORT/"; return 0; }
+        fi
         echo "cannot find hexbee-hive — install it with: pipx install \"$REPO_ROOT/hive\"" >&2
         return 1
-    }
+    fi
 
     if port_busy "$HIVE_PORT"; then
         # Something else owns the port. Do not adopt it and do not kill it.

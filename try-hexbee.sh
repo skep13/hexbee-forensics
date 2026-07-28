@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 # ===================================================================
 #  HexBee — one-command local test on macOS / Linux.
+#
+#  Prefer not to touch a terminal at all? Two ways:
+#    * double-click try-hexbee.command (macOS, works straight from a download)
+#    * install it as a real app:  bash scripts/make-macos-app.sh
+#                                 bash scripts/make-linux-app.sh
+#  Both build the environment themselves and open the dashboard, which walks
+#  you through creating your account.
+#
+#  This script differs in one way: it also loads demo evidence, so you get a
+#  populated Explorer rather than an empty one.
+#
 #  Usage:  bash try-hexbee.sh
 #  It installs HexBee into a venv, starts the Hive, loads a demo
 #  incident, and opens the dashboard. Login: admin / hexbee-demo-1

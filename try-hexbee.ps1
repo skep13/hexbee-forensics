@@ -1,5 +1,15 @@
 # ===================================================================
 #  HexBee — one-command local test on Windows.
+#
+#  Prefer not to touch a terminal at all? Double-click HexBee.bat, or install
+#  Start Menu and Desktop shortcuts:
+#     powershell -ExecutionPolicy Bypass -File scripts\make-windows-app.ps1
+#  Both build the environment themselves and open the dashboard, which walks
+#  you through creating your account.
+#
+#  This script differs in one way: it also loads demo evidence, so you get a
+#  populated Explorer rather than an empty one.
+#
 #  Right-click > Run with PowerShell, or:
 #     powershell -ExecutionPolicy Bypass -File try-hexbee.ps1
 #  It installs HexBee into a venv, starts the Hive, loads a demo
