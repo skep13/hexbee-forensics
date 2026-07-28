@@ -23,6 +23,11 @@ jobs:
           # floor the packages actually claim to support.
           - os: ubuntu-latest
             python: "3.9"
+          # aarch64 Linux — the Pi's architecture, and the Queen's once the
+          # laptop moves to Asahi. Byte-order and wheel-availability problems
+          # only ever show up on a real arm64 runner.
+          - os: ubuntu-24.04-arm
+            python: "3.11"
 
     steps:
       - uses: actions/checkout@v4
@@ -78,11 +83,16 @@ jobs:
       - name: shellcheck
         run: |
           sudo apt-get update -qq && sudo apt-get install -y shellcheck
-          shellcheck --severity=warning install.sh queen/setup-kali.sh hive/install.sh
+          shellcheck --severity=warning \
+            install.sh hive/install.sh \
+            queen/setup-kali.sh queen/setup-linux.sh queen/setup-macos.sh \
+            scripts/make-macos-app.sh scripts/make-linux-app.sh
 
       - name: Line endings must be LF
         run: |
-          for f in install.sh queen/setup-kali.sh hive/install.sh; do
+          for f in install.sh hive/install.sh \
+                   queen/setup-kali.sh queen/setup-linux.sh queen/setup-macos.sh \
+                   scripts/make-macos-app.sh scripts/make-linux-app.sh; do
             if grep -qU $'\r' "$f"; then
               echo "::error::$f has CRLF line endings and will not run on macOS or Linux"
               exit 1
@@ -92,3 +102,97 @@ jobs:
 
       - name: Installer dry run
         run: bash install.sh --check
+
+  # One tab per operating system HexBee claims to support. These do not run
+  # the test suite — they run the *installer*, because "the tests pass on
+  # Linux" and "the installer works on Fedora" are different claims, and it
+  # was the second one that broke when the analyst laptop moved to Asahi.
+  installer:
+    name: installer · ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS (brew, arm64)
+            runner: macos-latest
+          - label: Debian/Kali (apt)
+            runner: ubuntu-latest
+            container: debian:stable
+          - label: Fedora (dnf)
+            runner: ubuntu-latest
+            container: fedora:latest
+          # Asahi Remix is Fedora on aarch64. This is the closest a hosted
+          # runner gets to the real thing: same package manager, same arch.
+          - label: Fedora aarch64 (Asahi proxy)
+            runner: ubuntu-24.04-arm
+            container: fedora:latest
+          - label: Arch (pacman)
+            runner: ubuntu-latest
+            container: archlinux:latest
+
+    steps:
+      # Containers are minimal: the checkout action needs git, and the
+      # installer needs a python to build the venvs with.
+      - name: Bootstrap container
+        if: matrix.container != ''
+        shell: bash
+        run: |
+          if   command -v dnf    >/dev/null; then dnf install -y git python3 python3-pip pipx which findutils
+          elif command -v apt-get>/dev/null; then apt-get update -qq && apt-get install -y git python3 python3-pip pipx
+          elif command -v pacman >/dev/null; then pacman -Sy --noconfirm git python python-pip python-pipx
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Run the installer
+        shell: bash
+        run: |
+          if [ "$(uname -s)" = "Darwin" ]; then
+            bash queen/setup-macos.sh
+          else
+            bash queen/setup-linux.sh
+          fi
+
+      # The installer is allowed to skip optional system tooling on a distro
+      # that does not package it. It is not allowed to skip the two commands
+      # it exists to install.
+      - name: The commands must actually exist
+        shell: bash
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          failed=0
+          for cmd in hexbee-queen hexbee-comb; do
+            if command -v "$cmd" >/dev/null 2>&1; then
+              echo "ok      $cmd -> $(command -v "$cmd")"
+              "$cmd" --help >/dev/null || { echo "::error::$cmd installed but --help failed"; failed=1; }
+            else
+              echo "::error::$cmd was not installed by the installer"
+              failed=1
+            fi
+          done
+          exit $failed
+
+      # Every "how do I fix it" line the platform prints has to be a command
+      # this machine actually has. Telling a Fedora operator to run apt is the
+      # same failure as saying "not found".
+      - name: Install hints match this machine's package manager
+        shell: bash
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          python3 - <<'PY'
+          import shutil, sys
+          sys.path.insert(0, "comb"); sys.path.insert(0, "queen")
+          from hexbee_comb.pkghint import install_hint
+
+          hint = install_hint("sleuthkit")
+          print("hint:", hint)
+          tool = hint.split()[1] if hint.startswith("sudo ") else hint.split()[0]
+          if tool in ("install",):          # plain-language fallback
+              print("no package manager detected; fallback wording is fine")
+              sys.exit(0)
+          if shutil.which(tool) is None:
+              sys.exit(f"::error::hint suggests '{tool}', which is not on this machine")
+          print(f"ok: '{tool}' exists here")
+          PY
