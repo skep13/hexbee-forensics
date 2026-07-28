@@ -27,6 +27,7 @@ import html
 import json
 import shutil
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -388,13 +389,33 @@ def _redact(payload: dict) -> dict:
 
 # -- PDF ------------------------------------------------------------------
 
+def _no_pdf_reason() -> str:
+    """Why there is no PDF, and what to do instead — on this machine.
+
+    Kali/Debian still package wkhtmltopdf, so there the answer is one apt
+    command. Homebrew and Fedora both dropped it after upstream archived the
+    project, and pretending otherwise sends the operator chasing a package
+    that does not exist. The HTML report is the actual deliverable; a browser
+    prints it to PDF everywhere.
+    """
+    printable = ("the HTML report is complete — open it and print it to PDF "
+                 "from your browser")
+    if sys.platform == "darwin":
+        return f"wkhtmltopdf is not packaged for macOS any more — {printable}"
+    if shutil.which("apt"):
+        return "wkhtmltopdf not installed (sudo apt install wkhtmltopdf)"
+    if shutil.which("dnf") or shutil.which("zypper"):
+        return ("wkhtmltopdf is no longer packaged for this distribution — "
+                f"{printable}")
+    return f"wkhtmltopdf not installed — {printable}"
+
+
 def to_pdf(html_path: Path, pdf_path: Path) -> dict:
     """Convert with wkhtmltopdf, which is packaged for Kali/Debian and is far
     lighter than a headless browser on a 4 GB laptop."""
     binary = shutil.which("wkhtmltopdf")
     if binary is None:
-        return {"ok": False,
-                "reason": "wkhtmltopdf not installed (sudo apt install wkhtmltopdf)"}
+        return {"ok": False, "reason": _no_pdf_reason()}
     proc = subprocess.run(
         [binary, "--enable-local-file-access", "--quiet",
          "--margin-top", "16mm", "--margin-bottom", "16mm",

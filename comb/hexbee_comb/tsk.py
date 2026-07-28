@@ -11,6 +11,8 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 
+from .pkghint import install_hint
+
 
 def available() -> bool:
     return shutil.which("mmls") is not None and shutil.which("fls") is not None
@@ -79,8 +81,7 @@ def recover(image_path: str, out_dir: str, sector_offset: int = 0,
     if not recover_available():
         raise RuntimeError(
             "tsk_recover not found. Install Sleuth Kit:\n"
-            "  macOS:  brew install sleuthkit\n"
-            "  Debian: sudo apt install sleuthkit")
+            f"  {install_hint('sleuthkit')}")
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 

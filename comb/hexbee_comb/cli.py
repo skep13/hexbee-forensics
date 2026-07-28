@@ -17,6 +17,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from .pkghint import install_hint
+
 
 def cmd_scan(args) -> int:
     from .analysis import render_report, result_to_json, scan, to_hive_events, upload
@@ -96,8 +98,7 @@ def cmd_extract(args) -> int:
         return 1
     if not tsk.recover_available():
         print("Sleuth Kit's tsk_recover is not installed.\n"
-              "  macOS:  brew install sleuthkit\n"
-              "  Debian: sudo apt install sleuthkit", file=sys.stderr)
+              f"  {install_hint('sleuthkit')}", file=sys.stderr)
         return 1
 
     offset = args.offset
@@ -160,8 +161,8 @@ def cmd_tsk_ls(args) -> int:
     from . import tsk
 
     if not tsk.available():
-        print("Sleuth Kit (mmls/fls) not found on PATH. On Kali: "
-              "sudo apt install sleuthkit", file=sys.stderr)
+        print("Sleuth Kit (mmls/fls) not found on PATH. Install it with: "
+              f"{install_hint('sleuthkit')}", file=sys.stderr)
         return 1
     entries = tsk.list_files(args.image, args.offset)
     for e in entries:

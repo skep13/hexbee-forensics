@@ -38,6 +38,7 @@ import sys
 from pathlib import Path
 
 from .client import HiveClient, HiveError
+from .pkghint import install_hint
 
 SESSION_FILE = Path.home() / ".hexbee-queen.json"
 
@@ -382,7 +383,7 @@ def cmd_recon(args) -> int:
 
     client = _load_client()
     if recon.available() is None:
-        print("nmap is not installed (Kali: sudo apt install nmap)", file=sys.stderr)
+        print(f"nmap is not installed — {install_hint('nmap')}", file=sys.stderr)
         return 1
     try:
         result = recon.scan(client, args.target, profile=args.profile,

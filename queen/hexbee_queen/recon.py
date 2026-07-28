@@ -17,6 +17,8 @@ import subprocess
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 
+from .pkghint import install_hint
+
 PROFILES = {
     # name: (nmap args, description)
     "quick": (["-T4", "-F"], "top 100 ports, fast"),
@@ -62,7 +64,7 @@ def run_nmap(targets: list[str], profile: str = "quick",
     """Run nmap with XML output. Returns (xml, command line)."""
     binary = available()
     if binary is None:
-        raise RuntimeError("nmap is not installed (Kali: sudo apt install nmap)")
+        raise RuntimeError(f"nmap is not installed — {install_hint('nmap')}")
     if profile not in PROFILES:
         raise ValueError(f"profile must be one of {tuple(PROFILES)}")
     args = [binary, *PROFILES[profile][0], *(extra_args or []),

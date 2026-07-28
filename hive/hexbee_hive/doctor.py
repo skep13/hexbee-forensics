@@ -69,12 +69,61 @@ class Report:
 CORE = {"python", "data directory", "evidence database", "administrator account"}
 
 
-def _pkg_manager_hint(package: str) -> str:
+# "Linux" is not a package manager. Kali says apt, Fedora (including Asahi
+# Remix on Apple Silicon) says dnf, and telling an operator to run a command
+# their machine does not have is the same failure as saying "not found".
+# Detected from the binaries actually present, not from /etc/os-release, so a
+# derivative distribution needs no entry here.
+_PKG_MANAGERS = [
+    ("apt", "sudo apt install {}"),
+    ("dnf", "sudo dnf install {}"),
+    ("pacman", "sudo pacman -S {}"),
+    ("zypper", "sudo zypper install {}"),
+    ("apk", "sudo apk add {}"),
+]
+
+# Where a package's name differs from the binary/Debian name, per manager.
+_PKG_ALIASES = {
+    "dnf": {"libewf-tools": "libewf-tools", "python3-venv": "python3"},
+    "pacman": {"sleuthkit": "sleuthkit", "python3-venv": "python"},
+}
+
+
+def _pkg_manager() -> tuple[str, str] | tuple[None, None]:
+    """(name, command template) for this machine's package manager."""
     if IS_MACOS:
-        return f"brew install {package}"
-    if IS_LINUX:
-        return f"sudo apt install {package}"
-    return f"install {package} and put it on your PATH"
+        return ("brew", "brew install {}")
+    for name, template in _PKG_MANAGERS:
+        if shutil.which(name):
+            return (name, template)
+    return (None, None)
+
+
+PKG_MANAGER, _PKG_TEMPLATE = _pkg_manager()
+
+
+def _pkg_manager_hint(package: str) -> str:
+    if _PKG_TEMPLATE is None:
+        return f"install {package} and put it on your PATH"
+    package = _PKG_ALIASES.get(PKG_MANAGER, {}).get(package, package)
+    return _PKG_TEMPLATE.format(package)
+
+
+def _wkhtmltopdf_hint() -> str:
+    """wkhtmltopdf is archived upstream, and both Homebrew and Fedora dropped
+    it. Where there is no command to suggest, say so and give the way out —
+    the HTML report is the deliverable and every browser prints it to PDF."""
+    printable = "open the HTML report and print it to PDF from your browser"
+    if IS_MACOS:
+        return f"not packaged for macOS any more — {printable}"
+    if PKG_MANAGER == "apt":
+        return "sudo apt install wkhtmltopdf"
+    if PKG_MANAGER in ("dnf", "zypper"):
+        return f"no longer packaged for this distribution — {printable}"
+    return f"install it from wkhtmltopdf.org, or {printable}"
+
+
+WKHTMLTOPDF_FIX = _wkhtmltopdf_hint()
 
 
 # -- individual checks -----------------------------------------------------
@@ -225,31 +274,34 @@ def check_optional_python(report: Report) -> None:
 
 
 def check_external_tools(report: Report) -> None:
+    # (binary, package, what, enables, fix override or None). The override
+    # exists for tools the platform's package manager cannot supply — telling
+    # someone to run a command that does not exist is worse than saying so.
     tools = [
         ("tsk_recover", "sleuthkit",
          "Opens disk images and pulls the files out, without mounting them.",
-         "examining disk images and USB sticks"),
+         "examining disk images and USB sticks", None),
         ("nmap", "nmap",
          "Scans a network to find machines and the services they run.",
-         "hexbee-queen recon"),
+         "hexbee-queen recon", None),
         ("smartctl", "smartmontools",
          "Reads a disk's own health report.",
-         "disk failure warnings in diagnostics mode"),
+         "disk failure warnings in diagnostics mode", None),
         ("ollama", "ollama",
          "Runs the local AI assistant on your own machine. Nothing is sent "
          "to the internet.",
-         "conversational help and report drafting"),
+         "conversational help and report drafting", None),
         ("wkhtmltopdf", "wkhtmltopdf",
          "Turns a finished report into a PDF.",
-         "PDF report export"),
+         "PDF report export", WKHTMLTOPDF_FIX),
     ]
-    for binary, package, what, enables in tools:
+    for binary, package, what, enables, fix in tools:
         found = shutil.which(binary)
         if found:
             report.add(Check(package, OK, what, found, enables=enables))
         else:
             report.add(Check(package, WARN, what, "not installed",
-                             _pkg_manager_hint(package), enables))
+                             fix or _pkg_manager_hint(package), enables))
 
 
 def check_ai(cfg, report: Report) -> None:

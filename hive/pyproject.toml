@@ -24,5 +24,8 @@ build-backend = "setuptools.build_meta"
 include = ["hexbee_hive*"]
 
 [tool.setuptools.package-data]
+# knowledge_commands.json is the CLI snapshot for the components the Hive
+# cannot import. Without it in the wheel, a non-editable install still runs
+# but the assistant quietly loses half its manual.
 hexbee_hive = ["templates/*.html", "static/*.svg", "static/*.png",
-               "static/*.webmanifest"]
+               "static/*.webmanifest", "knowledge_commands.json"]

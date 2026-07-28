@@ -23,6 +23,7 @@ from . import __version__, tsk
 from .analysis import render_report, scan, to_hive_events, upload
 from .carver import carve
 from .diskimage import parse_partitions
+from .pkghint import install_hint
 
 _STYLE = """
  :root{--bg:#000;--pan:#0c0c0e;--line:#38383f;--txt:#f4f4f5;--gold:#f9b912;--mut:#9a9aa2}
@@ -114,7 +115,8 @@ class _Handler(BaseHTTPRequestHandler):
             avail = tsk.available()
             note = ("" if avail else
                     "<p class='err'>Sleuth Kit (mmls/fls) not found. Install it "
-                    "(<code>sudo apt install sleuthkit</code>) to enable file listing.</p>")
+                    f"(<code>{html.escape(install_hint('sleuthkit'))}</code>) "
+                    "to enable file listing.</p>")
             return self._send(self._page(note + self._image_form(
                 "/files", "Filesystem listing (Sleuth Kit)",
                 "List every file — including deleted — inside an image.",
