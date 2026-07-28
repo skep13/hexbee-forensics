@@ -41,6 +41,14 @@ forager/usb/dist/
 # A responder's real Hive key must never be committed
 forager/usb/forager.json
 
+# Device configs hold Wi-Fi passwords and ingest keys. config.example.py is
+# the tracked template; config.py is the real one and never belongs in a repo,
+# least of all a public one.
+scout/c3-stinger/config.py
+scout/c3-scanner/config.py
+device-configs/
+*.hexbee-device.json
+
 # Editor / OS
 .claude/
 .vscode/
