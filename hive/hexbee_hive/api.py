@@ -94,6 +94,7 @@ from .security import (
 )
 from .reports import case_report_data, render_csv, render_html, render_json
 from .explorer import build_tree, event_detail, query_events
+from .proof import chain_status, explain as proof_explain, tamper_preview
 from .search import search_events, stats
 from .store import EVENT_SELECT, audit, event_to_dict
 from .timeline import case_timeline, incident_timeline
@@ -1058,6 +1059,41 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
         return render_template(
             "search.html", user=g.user, results=results, query=q, devices=devices
         )
+
+    # -- Proof: what the hash chain actually guarantees --------------------
+
+    @app.get("/proof")
+    @require("viewer", api=False)
+    def proof_page():
+        return render_template("proof.html", user=g.user)
+
+    @app.get("/api/v1/proof/status")
+    @require("viewer")
+    def api_proof_status():
+        return jsonify(chain_status(db))
+
+    @app.get("/api/v1/proof/explain/<int:event_id>")
+    @require("viewer")
+    def api_proof_explain(event_id: int):
+        detail = proof_explain(db, event_id)
+        if detail is None:
+            return jsonify(error="no such event"), 404
+        return jsonify(detail)
+
+    @app.post("/api/v1/proof/tamper-preview")
+    @require("viewer")
+    def api_proof_tamper():
+        # A preview, never a write: the module it calls contains no INSERT,
+        # UPDATE or DELETE. A forensics tool must not ship an evidence editor,
+        # not even to demonstrate one.
+        body = request.get_json(silent=True) or {}
+        result = tamper_preview(db, int(body.get("event_id", 0)),
+                                str(body.get("field", "")),
+                                str(body.get("value", "")))
+        if result is None:
+            return jsonify(error="no such event, or field not one of "
+                                 "occurred_at/device/event_type/payload"), 400
+        return jsonify(result)
 
     # -- Explorer: the three-pane evidence browser ------------------------
 

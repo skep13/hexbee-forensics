@@ -34,7 +34,26 @@ CURRENT="$(printf '%s' "$WIFI_INFO" | sed -n '/Current Network Information:/,/Ot
 SSID_NOW="$(printf '%s' "$CURRENT" | sed -n '2p' | sed 's/^ *//; s/: *$//')"
 CHANNEL="$(printf '%s' "$CURRENT" | awk -F': ' '/Channel:/{print $2; exit}')"
 
-IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"
+# `ipconfig getifaddr` reports nothing on an iPhone hotspot — the address is
+# there (192.0.0.2 with a 192.0.0.1 gateway) but not in the form that command
+# reports. Ask the routing table which address actually leaves this machine,
+# and keep ipconfig only as a fallback.
+IP="$(python3 -c '
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+try:
+    s.connect(("8.8.8.8", 80))          # no packet is sent
+    print(s.getsockname()[0])
+except OSError:
+    pass
+finally:
+    s.close()
+' 2>/dev/null || true)"
+if [ -z "$IP" ]; then
+    IFACE="$(route -n get default 2>/dev/null | awk "/interface:/{print \$2}")"
+    [ -n "$IFACE" ] && IP="$(ifconfig "$IFACE" 2>/dev/null | awk "/inet /{print \$2; exit}")"
+fi
+[ -n "$IP" ] || IP="$(ipconfig getifaddr en0 2>/dev/null || true)"
 if [ -z "$IP" ]; then
     bad "This Mac has no Wi-Fi address. Join the hotspot first, then re-run."
     exit 1

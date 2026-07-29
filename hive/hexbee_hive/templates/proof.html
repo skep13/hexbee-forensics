@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Integrity Proof — HexBee Hive{% endblock %}
+{% block content %}
+<style>
+.pf-hero{display:grid;grid-template-columns:1fr auto;gap:1rem;align-items:center;
+  border:1px solid var(--line);border-radius:var(--r);padding:1rem 1.2rem;
+  background:linear-gradient(120deg,rgba(63,183,104,.07),transparent 60%)}
+.pf-hero.bad{background:linear-gradient(120deg,rgba(229,72,77,.10),transparent 60%)}
+.pf-verdict{font-size:1.35rem;font-weight:650;display:flex;align-items:center;gap:.55rem}
+.pf-dot{width:11px;height:11px;border-radius:50%;background:var(--ok);flex:none;
+  box-shadow:0 0 0 4px rgba(63,183,104,.18)}
+.pf-hero.bad .pf-dot{background:var(--crit);box-shadow:0 0 0 4px rgba(229,72,77,.2)}
+.pf-nums{display:flex;gap:1.6rem;font-family:var(--mono);font-size:.8rem;color:var(--muted)}
+.pf-nums b{display:block;font-size:1.15rem;color:var(--text)}
+.pf-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem}
+@media(max-width:900px){.pf-grid{grid-template-columns:1fr}}
+.pf-hash{font-family:var(--mono);font-size:.72rem;word-break:break-all;
+  background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:.45rem .55rem}
+.pf-hash.was{color:var(--ok)} .pf-hash.now{color:var(--crit)}
+.pf-arrow{text-align:center;color:var(--faint);font-size:1.1rem;margin:.35rem 0}
+.pf-inputs{display:grid;grid-template-columns:auto 1fr;gap:.3rem .7rem;font-size:.8rem}
+.pf-inputs dt{color:var(--muted)}
+.pf-inputs dd{margin:0;font-family:var(--mono);font-size:.75rem;word-break:break-all}
+.pf-row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:end;margin-bottom:.7rem}
+.pf-row .field{margin:0}
+.pf-note{font-size:.78rem;color:var(--faint);margin-top:.6rem;line-height:1.5}
+.pf-bang{border-left:3px solid var(--crit);padding:.55rem .75rem;background:rgba(229,72,77,.07);
+  border-radius:0 6px 6px 0;font-size:.86rem;margin-top:.8rem}
+.pf-vs{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:.5rem}
+.pf-vs th,.pf-vs td{text-align:left;padding:.42rem .55rem;border-bottom:1px solid var(--bg-3);
+  vertical-align:top}
+.pf-vs th{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.05em}
+.pf-vs td.yes{color:var(--ok)} .pf-vs td.no{color:var(--faint)}
+</style>
+
+<div class="page-head">
+  <div><h1>Integrity Proof</h1>
+    <p class="sub">A per-file hash proves one file was not altered. A chain proves
+      the <em>sequence</em> was not — nothing inserted, deleted or reordered.
+      This page demonstrates that on live records.</p></div>
+</div>
+
+<div class="pf-hero" id="pf-hero">
+  <div>
+    <div class="pf-verdict"><span class="pf-dot"></span><span id="pf-verdict">Verifying…</span></div>
+    <div class="muted" id="pf-head" style="font-family:var(--mono);font-size:.74rem;margin-top:.3rem"></div>
+  </div>
+  <div class="pf-nums">
+    <div>events<b id="pf-total">–</b></div>
+    <div>verified<b id="pf-checked">–</b></div>
+    <div>sources<b id="pf-devices">–</b></div>
+  </div>
+</div>
+
+<div class="pf-grid">
+  <div class="panel">
+    <h2>What one record commits to</h2>
+    <p class="muted" style="margin-top:0">Every field below feeds the hash. Change any
+      one of them and the hash changes.</p>
+    <div class="pf-row">
+      <div class="field"><label>Event ID</label>
+        <input id="pf-eid" type="number" value="1" style="width:9rem"></div>
+      <button class="btn btn-sm" id="pf-load">Show inputs</button>
+    </div>
+    <dl class="pf-inputs" id="pf-inputs"><dd class="muted">Pick an event.</dd></dl>
+  </div>
+
+  <div class="panel">
+    <h2>Try to change it</h2>
+    <p class="muted" style="margin-top:0">Alter a field and see what breaks.
+      <strong>Nothing is written</strong> — the edit exists only in memory for
+      this calculation.</p>
+    <div class="pf-row">
+      <div class="field"><label>Field</label>
+        <select id="pf-field">
+          <option value="event_type">event_type</option>
+          <option value="device">device</option>
+          <option value="occurred_at">occurred_at</option>
+          <option value="payload">payload</option>
+        </select></div>
+      <div class="field" style="flex:1"><label>New value</label>
+        <input id="pf-val" value="nothing_to_see_here"></div>
+      <button class="btn-primary btn-sm" id="pf-run">Recompute</button>
+    </div>
+    <div id="pf-result"></div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:1rem">
+  <h2>Where this sits next to a disk-forensics suite</h2>
+  <p class="muted" style="margin-top:0">HexBee does not replace Autopsy or AXIOM.
+    It covers what a single-image workstation tool structurally cannot.</p>
+  <table class="pf-vs">
+    <tr><th>Capability</th><th>Disk suite (Autopsy / AXIOM)</th><th>HexBee</th></tr>
+    <tr><td>Deleted-file recovery, unallocated space, registry parsing</td>
+        <td class="yes">Mature and court-tested</td>
+        <td class="no">Partial — carving and Sleuth Kit only</td></tr>
+    <tr><td>Keyword indexing across terabytes</td>
+        <td class="yes">Yes (Solr)</td><td class="no">No</td></tr>
+    <tr><td>Continuous collection from many live sources</td>
+        <td class="no">No — one image at a time</td>
+        <td class="yes">Hosts, network, wireless, phone, all into one log</td></tr>
+    <tr><td>Proof that the record sequence was not altered</td>
+        <td class="no">Per-file hashes only</td>
+        <td class="yes">Hash chain — demonstrated above</td></tr>
+    <tr><td>Runs offline on a £40 Raspberry Pi</td>
+        <td class="no">Workstation-class</td><td class="yes">Designed for it</td></tr>
+    <tr><td>Findings from other tools land in the same chain</td>
+        <td class="no">Its own database</td>
+        <td class="yes">Anything that can POST JSON</td></tr>
+  </table>
+  <p class="pf-note">The honest summary: use a disk suite to take one seized drive
+    apart; use HexBee when evidence arrives from several places over time and you
+    have to prove afterwards that the record was not edited.</p>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function(){
+  "use strict";
+  function el(id){ return document.getElementById(id); }
+  function esc(s){ return String(s === null || s === undefined ? "" : s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function getJSON(u,o){ return fetch(u, Object.assign({credentials:"same-origin"}, o||{}))
+      .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||("HTTP "+r.status)); return j; }); }); }
+
+  function status(){
+    getJSON("/api/v1/proof/status").then(function(d){
+      el("pf-verdict").textContent = d.ok
+        ? "Chain verified — every record accounted for"
+        : "CHAIN BROKEN at event #" + d.first_bad_id;
+      el("pf-hero").className = "pf-hero" + (d.ok ? "" : " bad");
+      el("pf-total").textContent = d.total_events;
+      el("pf-checked").textContent = d.checked;
+      el("pf-devices").textContent = d.devices;
+      if (d.head) el("pf-head").textContent =
+        "head: #" + d.head.id + "  " + String(d.head.event_hash).slice(0,24) + "…";
+      if (d.total_events && el("pf-eid").value === "1") el("pf-eid").value = d.head ? d.head.id : 1;
+    }).catch(function(e){ el("pf-verdict").textContent = "Could not verify: " + e.message; });
+  }
+
+  function loadInputs(){
+    var id = parseInt(el("pf-eid").value, 10) || 1;
+    getJSON("/api/v1/proof/explain/" + id).then(function(d){
+      var i = d.inputs, h = "";
+      h += "<dt>previous hash</dt><dd>" + esc(i.previous_hash) + "</dd>";
+      h += "<dt>occurred_at</dt><dd>" + esc(i.occurred_at) + "</dd>";
+      h += "<dt>device</dt><dd>" + esc(i.device) + "</dd>";
+      h += "<dt>event_type</dt><dd>" + esc(i.event_type) + "</dd>";
+      h += "<dt>payload</dt><dd>" + esc(JSON.stringify(i.payload)).slice(0,400) + "</dd>";
+      h += "<dt>= stored hash</dt><dd class='" + (d.matches ? "" : "") + "'>" + esc(d.stored_hash) + "</dd>";
+      h += "<dt>recomputed</dt><dd>" + esc(d.recomputed_hash) +
+           (d.matches ? "  ✓ matches" : "  ✗ MISMATCH") + "</dd>";
+      el("pf-inputs").innerHTML = h;
+    }).catch(function(e){ el("pf-inputs").innerHTML = "<dd>" + esc(e.message) + "</dd>"; });
+  }
+
+  function runTamper(){
+    var body = { event_id: parseInt(el("pf-eid").value, 10) || 1,
+                 field: el("pf-field").value, value: el("pf-val").value };
+    el("pf-result").innerHTML = "<p class='muted'>Recomputing…</p>";
+    getJSON("/api/v1/proof/tamper-preview", {
+      method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)
+    }).then(function(d){
+      var h = "<div class='pf-hash was'>" + esc(d.hash_before) + "</div>";
+      h += "<div class='pf-arrow'>↓ with " + esc(d.field) + " changed</div>";
+      h += "<div class='pf-hash now'>" + esc(d.hash_after) + "</div>";
+      if (d.changed)
+        h += "<div class='pf-bang'><strong>" + d.total_invalidated +
+             " record(s) would fail verification.</strong><br>" + esc(d.verdict) + "</div>";
+      else
+        h += "<p class='muted'>" + esc(d.verdict) + "</p>";
+      h += "<p class='pf-note'>Nothing was written. Reload and the chain still verifies —" +
+           " this page cannot edit evidence, by design.</p>";
+      el("pf-result").innerHTML = h;
+    }).catch(function(e){ el("pf-result").innerHTML = "<p class='muted'>" + esc(e.message) + "</p>"; });
+  }
+
+  el("pf-load").addEventListener("click", loadInputs);
+  el("pf-run").addEventListener("click", runTamper);
+  status();
+})();
+</script>
+{% endblock %}
