@@ -246,6 +246,25 @@ set_key CFBundleIdentifier "io.hexbee.forensics"
 set_key CFBundleVersion "0.1.0"
 set_key CFBundleShortVersionString "0.1.0"
 
+# osacompile ad-hoc signs the applet, and every edit above — the icon, the
+# bundle identity — invalidates that signature. macOS then reports the app as
+# "modified" and refuses to treat it as signed at all. Re-sign last.
+#
+# Ad-hoc (`-s -`) needs no Apple Developer account. It is not notarisation and
+# does not silence Gatekeeper for a *downloaded* app; it does not need to,
+# because this script builds the bundle locally and locally-built apps are
+# never quarantined. That is the whole reason HexBee ships a build script
+# rather than a DMG.
+if codesign --force --deep --sign - "$APP" 2>/dev/null; then
+    if codesign --verify --deep --strict "$APP" 2>/dev/null; then
+        echo "    signed (ad-hoc) and verified"
+    else
+        echo "    signed, but verification failed — the app still runs" >&2
+    fi
+else
+    echo "    could not sign — the app still runs locally" >&2
+fi
+
 # Register with LaunchServices so the icon and name show up immediately.
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
     -f "$APP" >/dev/null 2>&1 || true

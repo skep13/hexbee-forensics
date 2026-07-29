@@ -212,3 +212,53 @@ def test_doctor_api_returns_checks(client):
     body = client.get("/api/v1/doctor").get_json()
     assert "ready" in body and body["checks"]
     assert all("fix" in c and "what" in c for c in body["checks"])
+
+
+# -- the launcher env file is *sourced*, so it must survive a shell ---------
+# macOS's default evidence directory contains a space
+# ("~/Library/Application Support/HexBee"). Written unquoted, the shell splits
+# on it, HEXBEE_DATA_DIR comes out empty, and evidence silently goes to the
+# fallback location instead of the operator's chosen one.
+
+def _load_provisioner():
+    """The script has a hyphen in its name, so it cannot be imported normally."""
+    import importlib.util
+    from pathlib import Path as _Path
+
+    path = _Path(__file__).resolve().parent.parent / "scripts" / "provision-devices.py"
+    spec = importlib.util.spec_from_file_location("provision_devices", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_app_env_survives_a_path_containing_spaces(tmp_path, monkeypatch):
+    import subprocess
+
+    provision = _load_provisioner()
+    env_file = tmp_path / "app.env"
+    monkeypatch.setattr(provision, "APP_ENV", env_file)
+    data_dir = tmp_path / "Application Support" / "HexBee"
+    provision.write_app_env("k3y-with-no-spaces", data_dir)
+
+    # Source it the way the launcher does and read the value back.
+    result = subprocess.run(
+        ["bash", "-c", f'. "{env_file}" && printf "%s" "$HEXBEE_DATA_DIR"'],
+        capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == str(data_dir)
+
+
+def test_app_env_survives_a_key_with_shell_metacharacters(tmp_path, monkeypatch):
+    import subprocess
+
+    provision = _load_provisioner()
+    env_file = tmp_path / "app.env"
+    monkeypatch.setattr(provision, "APP_ENV", env_file)
+    nasty = "key$(echo pwned) 'quoted'"
+    provision.write_app_env(nasty, tmp_path / "d")
+
+    result = subprocess.run(
+        ["bash", "-c", f'. "{env_file}" && printf "%s" "$HEXBEE_INGEST_KEY"'],
+        capture_output=True, text=True)
+    assert result.stdout == nasty, "the key must not be re-interpreted by the shell"

@@ -24,6 +24,7 @@ import json
 import os
 import re
 import secrets
+import shlex
 import socket
 import subprocess
 import sys
@@ -76,8 +77,18 @@ def ingest_key() -> tuple[str, bool]:
 
 
 def write_app_env(key: str, data_dir: Path) -> None:
-    """The app reads this on launch, so the Hive and the devices agree."""
-    APP_ENV.write_text(f"HEXBEE_DATA_DIR={data_dir}\nHEXBEE_INGEST_KEY={key}\n")
+    """The app reads this on launch, so the Hive and the devices agree.
+
+    Values are quoted because this file is *sourced* by the launcher, and the
+    default data directory on macOS is "~/Library/Application Support/HexBee".
+    Unquoted, the shell splits on that space, HEXBEE_DATA_DIR comes out unset,
+    and evidence silently lands in the fallback location instead of the one
+    the operator chose — the worst kind of bug in a forensics tool, because
+    nothing appears to be wrong.
+    """
+    APP_ENV.write_text(
+        f"HEXBEE_DATA_DIR={shlex.quote(str(data_dir))}\n"
+        f"HEXBEE_INGEST_KEY={shlex.quote(key)}\n")
     APP_ENV.chmod(0o600)
 
 
@@ -102,8 +113,10 @@ def main() -> int:
 
     key, minted = ingest_key()
     data_dir = Path.home() / "Library" / "Application Support" / "HexBee"
-    if minted:
-        write_app_env(key, data_dir)
+    # Always rewrite, not just when the key is new: an env file written by an
+    # older version is unquoted, and only rewriting on first mint would leave
+    # that broken file in place forever.
+    write_app_env(key, data_dir)
 
     OUT.mkdir(exist_ok=True)
     (OUT / ".gitignore").write_text("*\n")   # belt and braces: never commit these
