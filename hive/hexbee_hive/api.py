@@ -95,6 +95,7 @@ from .security import (
 from .reports import case_report_data, render_csv, render_html, render_json
 from .explorer import build_tree, event_detail, query_events
 from .proof import chain_status, explain as proof_explain, tamper_preview
+from .attribution import attribute, engagement_activity, summary as attribution_summary
 from .search import search_events, stats
 from .store import EVENT_SELECT, audit, event_to_dict
 from .timeline import case_timeline, incident_timeline
@@ -1059,6 +1060,34 @@ def create_app(cfg: HiveConfig, db: Database) -> Flask:
         return render_template(
             "search.html", user=g.user, results=results, query=q, devices=devices
         )
+
+    # -- Attribution: was that us? ----------------------------------------
+
+    @app.get("/attribution")
+    @require("investigator", api=False)
+    def attribution_page():
+        return render_template("attribution.html", user=g.user)
+
+    @app.get("/api/v1/attribution/summary")
+    @require("investigator")
+    def api_attribution_summary():
+        return jsonify(attribution_summary(db))
+
+    @app.get("/api/v1/attribution/activity")
+    @require("investigator")
+    def api_attribution_activity():
+        q = request.args
+        return jsonify(activity=engagement_activity(
+            db, since=q.get("since") or None, until=q.get("until") or None))
+
+    @app.get("/api/v1/attribution/<int:event_id>")
+    @require("investigator")
+    def api_attribution_event(event_id: int):
+        window = request.args.get("window", default=300, type=int)
+        result = attribute(db, event_id, window_seconds=max(1, min(window, 86400)))
+        if result is None:
+            return jsonify(error="no such event"), 404
+        return jsonify(result)
 
     # -- Proof: what the hash chain actually guarantees --------------------
 

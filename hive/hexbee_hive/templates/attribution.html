@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Was That Us? — HexBee Hive{% endblock %}
+{% block content %}
+<style>
+.at-split{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+@media(max-width:960px){.at-split{grid-template-columns:1fr}}
+.at-counts{display:flex;gap:1.8rem;font-family:var(--mono);font-size:.78rem;color:var(--muted)}
+.at-counts b{display:block;font-size:1.3rem;color:var(--text)}
+.at-verdict{border-radius:var(--r);padding:.9rem 1.1rem;margin-top:.8rem;
+  border:1px solid var(--line);font-size:.9rem}
+.at-verdict .v{font-size:1.15rem;font-weight:650;display:block;margin-bottom:.25rem}
+.at-ours{border-color:rgba(249,185,18,.5);background:rgba(249,185,18,.09)}
+.at-ours .v{color:var(--honey-2)}
+.at-attr{border-color:rgba(232,135,30,.5);background:rgba(232,135,30,.09)}
+.at-attr .v{color:var(--warning)}
+.at-not{border-color:rgba(63,183,104,.45);background:rgba(63,183,104,.08)}
+.at-not .v{color:var(--ok)}
+.at-inc{border-color:var(--line-2);background:var(--bg-3)}
+.at-inc .v{color:var(--muted)}
+.at-conf{font-family:var(--mono);font-size:.68rem;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--faint);margin-left:.5rem}
+.at-cand{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:.6rem}
+.at-cand th,.at-cand td{text-align:left;padding:.35rem .5rem;
+  border-bottom:1px solid var(--bg-3)}
+.at-cand th{color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em}
+.at-cand td.hit{color:var(--honey)}
+.at-auth{font-family:var(--mono);font-size:.74rem;color:var(--ok);margin-top:.5rem}
+.at-row{display:flex;gap:.5rem;align-items:end;flex-wrap:wrap;margin-bottom:.5rem}
+.at-row .field{margin:0}
+.at-note{font-size:.78rem;color:var(--faint);line-height:1.55;margin-top:.7rem}
+.at-act{font-family:var(--mono);font-size:.76rem}
+.at-act li{margin-bottom:.3rem;color:var(--muted)}
+.at-act b{color:var(--honey)}
+</style>
+
+<div class="page-head">
+  <div><h1>Was That Us?</h1>
+    <p class="sub">Your authorised actions and the environment's telemetry are in
+      the same tamper-evident log. So when something fires, this can say whether
+      it was you — and show the authorisation.</p></div>
+</div>
+
+<div class="panel">
+  <div class="at-counts">
+    <div>our actions<b id="at-ours">–</b></div>
+    <div>observed<b id="at-obs">–</b></div>
+    <div>scope rules<b id="at-scope">–</b></div>
+  </div>
+  <p class="at-note" id="at-ready"></p>
+</div>
+
+<div class="at-split" style="margin-top:1rem">
+  <div class="panel">
+    <h2>Ask about an event</h2>
+    <div class="at-row">
+      <div class="field"><label>Event ID</label>
+        <input id="at-eid" type="number" value="1" style="width:8rem"></div>
+      <div class="field"><label>Window (seconds)</label>
+        <input id="at-win" type="number" value="300" style="width:8rem"></div>
+      <button class="btn-primary btn-sm" id="at-go">Answer</button>
+    </div>
+    <div id="at-result"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Everything we did</h2>
+    <p class="muted" style="margin-top:0">Only our own tooling — recon, HID,
+      portal, pivot, and refusals the scope enforcer blocked.</p>
+    <ul class="at-act" id="at-activity"><li>Loading…</li></ul>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:1rem">
+  <h2>Why this is hard anywhere else</h2>
+  <p class="muted" style="margin-top:0">
+    Offensive tooling writes to one log; defensive telemetry to another. Two
+    systems, two clocks, and each side's record is the one the other side has
+    reason to doubt. Reconstructing "was that us?" afterwards is manual, slow,
+    and contested.</p>
+  <p class="at-note">
+    Here both are the same log, and the log can prove it was not edited — see
+    <a href="/proof">Integrity Proof</a>. That does not make a verdict here
+    proof of causation: same target inside a time window is grounds for
+    <em>attributable</em>, not <em>caused by</em>. "Not ours" is only claimed
+    when a complete record of our own activity exists for that window; with no
+    record at all, this reports inconclusive rather than innocent.</p>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function(){
+  "use strict";
+  function el(id){ return document.getElementById(id); }
+  function esc(s){ return String(s === null || s === undefined ? "" : s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function getJSON(u){ return fetch(u,{credentials:"same-origin"}).then(function(r){
+    return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||("HTTP "+r.status)); return j; }); }); }
+
+  var CLASS = { ours:"at-ours", attributable:"at-attr", not_ours:"at-not", inconclusive:"at-inc" };
+  var TITLE = { ours:"This was us", attributable:"Attributable to us",
+                not_ours:"Not us", inconclusive:"Inconclusive" };
+
+  getJSON("/api/v1/attribution/summary").then(function(d){
+    el("at-ours").textContent = d.engagement_events;
+    el("at-obs").textContent = d.observed_events;
+    el("at-scope").textContent = d.active_scope_rules;
+    el("at-ready").textContent = d.attributable
+      ? "Authorised activity is recorded against scope rules — attribution is available."
+      : "No authorised activity recorded against scope rules yet, so nothing can be attributed. Add scope rules and run a tool through them.";
+  }).catch(function(e){ el("at-ready").textContent = "Could not load: " + e.message; });
+
+  getJSON("/api/v1/attribution/activity").then(function(d){
+    if (!d.activity.length){ el("at-activity").innerHTML = "<li>Nothing yet.</li>"; return; }
+    var h = "";
+    for (var i = 0; i < d.activity.length && i < 40; i++){
+      var a = d.activity[i];
+      h += "<li>#" + a.id + " <b>" + esc(a.event_type) + "</b> " + esc(a.occurred_at) +
+           (a.targets.length ? " → " + esc(a.targets.join(", ")) : "") + "</li>";
+    }
+    el("at-activity").innerHTML = h;
+  }).catch(function(e){ el("at-activity").innerHTML = "<li>" + esc(e.message) + "</li>"; });
+
+  el("at-go").addEventListener("click", function(){
+    var id = parseInt(el("at-eid").value, 10) || 1;
+    var win = parseInt(el("at-win").value, 10) || 300;
+    el("at-result").innerHTML = "<p class='muted'>Checking…</p>";
+    getJSON("/api/v1/attribution/" + id + "?window=" + win).then(function(d){
+      var h = "<div class='at-verdict " + (CLASS[d.verdict] || "at-inc") + "'>";
+      h += "<span class='v'>" + esc(TITLE[d.verdict] || d.verdict) +
+           "<span class='at-conf'>" + esc(d.confidence) + " confidence</span></span>";
+      h += esc(d.explanation) + "</div>";
+
+      h += "<p class='muted' style='margin:.7rem 0 0'><code>" + esc(d.event_type) +
+           "</code> at " + esc(d.occurred_at) +
+           (d.targets && d.targets.length ? " — targets: " + esc(d.targets.join(", ")) : "") + "</p>";
+
+      if (d.candidates && d.candidates.length){
+        h += "<table class='at-cand'><tr><th>Our action</th><th>When</th>" +
+             "<th>Δ</th><th>Same target</th></tr>";
+        for (var i = 0; i < d.candidates.length; i++){
+          var c = d.candidates[i];
+          h += "<tr><td>#" + c.id + " " + esc(c.event_type) + "</td>" +
+               "<td>" + esc(c.occurred_at) + "</td>" +
+               "<td>" + (c.seconds_apart === null ? "?" : c.seconds_apart + "s") + "</td>" +
+               "<td class='" + (c.matches_target ? "hit" : "") + "'>" +
+               (c.matches_target ? esc(c.shared_targets.join(", ")) : "no") + "</td></tr>";
+        }
+        h += "</table>";
+      }
+      if (d.authorisation && d.authorisation.length){
+        h += "<div class='at-auth'>authorised by: ";
+        for (var j = 0; j < d.authorisation.length; j++){
+          var a = d.authorisation[j];
+          h += esc(a.value) + (a.auth_ref ? " (" + esc(a.auth_ref) + ")" : "") + "  ";
+        }
+        h += "</div>";
+      }
+      el("at-result").innerHTML = h;
+    }).catch(function(e){ el("at-result").innerHTML = "<p class='muted'>" + esc(e.message) + "</p>"; });
+  });
+})();
+</script>
+{% endblock %}
