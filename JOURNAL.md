@@ -553,7 +553,75 @@ running" against the wrong port. Defaults are evaluated once, not per call.
 
 Suite: **395**.
 
-### Entry 26 — Scout hardware bring-up (in progress)
+### Entry 26 — Field provisioning, and the first hardware bring-up
+**Time:** _(fill in)_
+
+Took the kit off the bench. The Mac hosts the Hive; the Pi, the ESP32-C3, the
+iPhone and the USB sticks are collectors reporting into it.
+
+`scripts/provision-devices.py` writes the real config for each device rather
+than describing what to type — a filled-in `config.py` for the C3,
+`forager.json` for the sticks, a `pi-setup.sh`, and the iPhone's URL. It reads
+this machine's address from the routing table, because a phone hotspot hands
+out a new one every time it starts and a stale address in a flashed board is
+indistinguishable from broken hardware. `demo-day.sh` wraps the whole
+sequence and then *proves* it: Hive up, reachable on the LAN address, and an
+ingest accepted with the key the devices actually carry. Checking matters —
+"the config is written" and "the board can talk to it" are different claims.
+
+**The ESP32-C3 ran for the first time.** MicroPython 1.27.0 flashed and
+hash-verified, all seven modules copied, `selftest.py` passed on real silicon,
+BLE returned 29 advertisements, and the board joined the hotspot and took a
+DHCP lease. Everything in this repo about the Stinger had been theory until
+this point.
+
+Three things only hardware could have taught us:
+
+- **The Wi-Fi scan needs a radio power-cycle.** `active(True)` followed by an
+  immediate `scan()` returns zero networks; `active(False)` → sleep →
+  `active(True)` → sleep → `scan()` returns eighteen. `scanner.py` will
+  under-report on a cold start until this is fixed.
+- **iOS stops beaconing the hotspot SSID** once something is connected to it.
+  The board reported `NO_AP_FOUND` against a network sitting at −38 dBm. The
+  Personal Hotspot settings screen has to be open for a new device to find it.
+- **The SSID was not what anyone typed.** It is `Jacob’s iPhone` — U+2019
+  curly apostrophe, lowercase i — so every hand-written variant failed. The
+  scan result is now the source of truth for that string, not a human.
+
+Also found: macOS registered the C3's USB Serial/JTAG interface as a *network
+service* and ranked it above Wi-Fi, and separately the Mac's Wi-Fi associated
+without ever completing DHCP (`192.0.0.2/32`, null netmask, no lease) because
+of Private Wi-Fi Address against a phone hotspot. Neither is a HexBee bug, but
+both look exactly like one from the operator's chair, which is why they are
+written down here.
+
+### Entry 27 — Proving the claim instead of making it
+**Time:** _(fill in)_
+
+The README had been asserting "tamper-evident" for twenty-six entries. An
+examiner has no reason to believe that until they watch the tamper being
+caught, so `/proof` now does the arithmetic live: the exact inputs one event's
+hash commits to, an editable copy of any of them, the resulting hash, and how
+many downstream records the change invalidates. On the development chain,
+altering one field of event #100 invalidates 4,033 records.
+
+**It cannot actually tamper.** `proof.py` contains no INSERT, UPDATE or DELETE;
+the altered record exists only in memory, and a test asserts the chain still
+verifies after previewing tampering on every hashed field. Shipping an
+evidence editor to demonstrate tamper-detection would defeat the thing being
+demonstrated.
+
+The same page states where HexBee sits next to Autopsy and AXIOM **including
+where they win** — deleted-file recovery, unallocated space, registry parsing,
+keyword indexing at scale. Claiming to beat a court-tested disk suite at disk
+forensics invites the one question that ends a conversation. The defensible
+claim is narrower and true: a single-image workstation tool cannot collect
+continuously from many live sources into one log and then prove the sequence
+was not edited. That is the row the page demonstrates rather than asserts.
+
+Suite: **402**.
+
+### Entry 28 — Scout hardware bring-up (in progress)
 **Time:** _(fill in)_
 
 _Next hardware milestone — log as you go:_
@@ -662,7 +730,7 @@ Kconfig + `sdkconfig.defaults`; Python simulator `scout/simulator/scout_sim.py`;
 C3 Stinger (MicroPython) `c3-stinger/` — `main.py`, `link.py`, `scanner.py`,
 `portal.py`, `hid.py`, `selftest.py`, DuckyScript payloads.
 
-### Tests — `tests/` (395 tests)
+### Tests — `tests/` (402 tests)
 `test_core.py`, `test_api.py`, `test_new_api.py`, `test_ioc.py`,
 `test_comb.py`, `test_field_features.py`, `test_security.py`, `test_ui.py`,
 `test_forager.py`, `test_forager_diagnostics.py`, `test_attack.py`,
